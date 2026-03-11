@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Search, SlidersHorizontal } from 'lucide-react';
@@ -9,22 +9,15 @@ import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useAuthStore } from '../stores/auth';
-import { TournamentStatus } from '@tournirken/shared';
+import { useTranslation } from 'react-i18next';
 
 export const Route = createFileRoute('/')({
   component: IndexPage,
 });
 
-const statusOptions = [
-  { value: '', label: 'Все статусы' },
-  { value: 'REGISTRATION', label: 'Регистрация' },
-  { value: 'ACTIVE', label: 'Идёт' },
-  { value: 'FINISHED', label: 'Завершён' },
-  { value: 'DRAFT', label: 'Черновик' },
-];
-
 function IndexPage() {
   const { user } = useAuthStore();
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [gameSearch, setGameSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -52,6 +45,13 @@ function IndexPage() {
   const tournaments = data?.data ?? [];
   const totalPages = data?.totalPages ?? 1;
 
+  const statusOptions = [
+    { value: 'REGISTRATION', label: t('status.REGISTRATION') },
+    { value: 'ACTIVE', label: t('status.ACTIVE') },
+    { value: 'FINISHED', label: t('status.FINISHED') },
+    { value: 'DRAFT', label: t('status.DRAFT') },
+  ];
+
   return (
     <div className="flex gap-6">
       {/* Sidebar */}
@@ -62,37 +62,37 @@ function IndexPage() {
         <div className="space-y-3 p-4 border rounded-lg bg-card">
           <h3 className="font-medium text-sm flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4" />
-            Фильтры
+            {t('tournament.filters')}
           </h3>
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Поиск по названию</label>
+            <label className="text-xs text-muted-foreground mb-1 block">{t('tournament.searchByName')}</label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 className="pl-8"
-                placeholder="Название турнира..."
+                placeholder={t('tournament.namePlaceholder')}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               />
             </div>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Игра</label>
+            <label className="text-xs text-muted-foreground mb-1 block">{t('tournament.game')}</label>
             <Input
-              placeholder="Название игры..."
+              placeholder={t('tournament.gamePlaceholder')}
               value={gameSearch}
               onChange={(e) => { setGameSearch(e.target.value); setPage(1); }}
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground mb-1 block">Статус</label>
+            <label className="text-xs text-muted-foreground mb-1 block">{t('tournament.status')}</label>
             <Select value={status} onValueChange={(v) => { setStatus(v === '_all' ? '' : v); setPage(1); }}>
               <SelectTrigger>
-                <SelectValue placeholder="Все статусы" />
+                <SelectValue placeholder={t('tournament.allStatuses')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="_all">Все статусы</SelectItem>
-                {statusOptions.slice(1).map((o) => (
+                <SelectItem value="_all">{t('tournament.allStatuses')}</SelectItem>
+                {statusOptions.map((o) => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -104,9 +104,9 @@ function IndexPage() {
       {/* Main content */}
       <div className="flex-1 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Турниры</h1>
+          <h1 className="text-2xl font-bold">{t('tournament.title')}</h1>
           {data && (
-            <span className="text-sm text-muted-foreground">Найдено: {data.total}</span>
+            <span className="text-sm text-muted-foreground">{t('tournament.found', { count: data.total })}</span>
           )}
         </div>
 
@@ -118,16 +118,16 @@ function IndexPage() {
           </div>
         ) : tournaments.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
-            <p className="text-lg">Турниры не найдены</p>
-            <p className="text-sm mt-1">Попробуйте изменить фильтры</p>
+            <p className="text-lg">{t('tournament.notFound')}</p>
+            <p className="text-sm mt-1">{t('tournament.notFoundHint')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {tournaments.map((t: any) => (
+            {tournaments.map((tournament: any) => (
               <TournamentCard
-                key={t.id}
-                tournament={t}
-                isParticipant={myParticipations?.includes(t.id)}
+                key={tournament.id}
+                tournament={tournament}
+                isParticipant={myParticipations?.includes(tournament.id)}
               />
             ))}
           </div>
@@ -142,7 +142,7 @@ function IndexPage() {
               disabled={page === 1}
               onClick={() => setPage((p) => p - 1)}
             >
-              Назад
+              {t('tournament.prev')}
             </Button>
             <span className="flex items-center px-3 text-sm">
               {page} / {totalPages}
@@ -153,7 +153,7 @@ function IndexPage() {
               disabled={page >= totalPages}
               onClick={() => setPage((p) => p + 1)}
             >
-              Вперёд
+              {t('tournament.next')}
             </Button>
           </div>
         )}

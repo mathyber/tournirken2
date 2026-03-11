@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { gamesApi, tournamentsApi } from '../../api/tournaments';
@@ -10,23 +10,18 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Switch } from '../../components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { TournamentFormat } from '@tournirken/shared';
+import { useTranslation } from 'react-i18next';
 
 export const Route = createFileRoute('/tournaments/create')({
   component: CreateTournamentPage,
 });
 
-const formatOptions = [
-  { value: 'SINGLE_ELIMINATION', label: 'Олимпийская система', desc: 'Проигравший выбывает. Классика.' },
-  { value: 'DOUBLE_ELIMINATION', label: 'Двойное выбывание', desc: 'Два поражения — выбываешь. Есть шанс на реванш через нижнюю сетку.' },
-  { value: 'ROUND_ROBIN', label: 'Круговая система', desc: 'Каждый играет с каждым. Победитель по очкам.' },
-  { value: 'SWISS', label: 'Швейцарская система', desc: 'N раундов, каждый раунд — соперники схожего уровня. Без рематчей.' },
-  { value: 'MIXED', label: 'Смешанная (Группы + Плей-офф)', desc: 'Групповой этап, затем плей-офф лучших из каждой группы.' },
-];
+const FORMAT_VALUES = ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED'] as const;
 
 function CreateTournamentPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [form, setForm] = useState({
     tournamentName: '',
@@ -37,6 +32,7 @@ function CreateTournamentPage() {
     info: '',
     logo: '',
     onlyOrganizerSetsResults: false,
+    openRegistrationNow: false,
     registrationStart: '',
     registrationEnd: '',
     swissRounds: '',
@@ -45,16 +41,29 @@ function CreateTournamentPage() {
 
   const { data: games = [] } = useQuery({ queryKey: ['games'], queryFn: gamesApi.list });
 
+  const formatOptions = FORMAT_VALUES.map((v) => ({
+    value: v,
+    label: t(`format.${v}`),
+    desc: t(`format.${v}_desc`),
+  }));
+
   const createMutation = useMutation({
-    mutationFn: (data: any) => tournamentsApi.create(data),
+    mutationFn: async (data: any) => {
+      const { openRegistrationNow, ...createData } = data;
+      const tournament = await tournamentsApi.create(createData);
+      if (openRegistrationNow) {
+        await tournamentsApi.openRegistration(tournament.id);
+      }
+      return tournament;
+    },
     onSuccess: (tournament) => navigate({ to: '/tournaments/$id', params: { id: String(tournament.id) } }),
-    onError: (err: any) => setError(err.response?.data?.error || 'Ошибка создания турнира'),
+    onError: (err: any) => setError(err.response?.data?.error || t('create.error')),
   });
 
   if (!user) {
     return (
       <div className="text-center py-16">
-        <p className="text-muted-foreground">Войдите, чтобы создать турнир</p>
+        <p className="text-muted-foreground">{t('create.loginRequired')}</p>
       </div>
     );
   }
@@ -71,6 +80,7 @@ function CreateTournamentPage() {
       info: form.info || undefined,
       logo: form.logo || undefined,
       onlyOrganizerSetsResults: form.onlyOrganizerSetsResults,
+      openRegistrationNow: form.openRegistrationNow,
       registrationStart: form.registrationStart || undefined,
       registrationEnd: form.registrationEnd || undefined,
       swissRounds: form.swissRounds ? parseInt(form.swissRounds) : undefined,
@@ -81,25 +91,25 @@ function CreateTournamentPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Создать турнир</h1>
+      <h1 className="text-2xl font-bold mb-6">{t('create.title')}</h1>
 
       <form onSubmit={handleSubmit}>
         <Card className="space-y-0">
-          <CardHeader><CardTitle className="text-lg">Основная информация</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">{t('create.basicInfo')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 md:col-span-1">
-                <Label htmlFor="name">Название турнира *</Label>
+                <Label htmlFor="name">{t('create.tournamentName')}</Label>
                 <Input
                   id="name"
                   value={form.tournamentName}
                   onChange={(e) => setForm((f) => ({ ...f, tournamentName: e.target.value }))}
-                  placeholder="Чемпионат весны"
+                  placeholder={t('create.tournamentNamePlaceholder')}
                   required
                 />
               </div>
               <div className="col-span-2 md:col-span-1">
-                <Label htmlFor="season">Сезон</Label>
+                <Label htmlFor="season">{t('create.season')}</Label>
                 <Input
                   id="season"
                   type="number"
@@ -112,12 +122,12 @@ function CreateTournamentPage() {
             </div>
 
             <div>
-              <Label htmlFor="game">Игра *</Label>
+              <Label htmlFor="game">{t('create.game')}</Label>
               <Input
                 id="game"
                 value={form.gameName}
                 onChange={(e) => setForm((f) => ({ ...f, gameName: e.target.value }))}
-                placeholder="CS2, Dota 2, ..."
+                placeholder={t('create.gamePlaceholder')}
                 list="games-list"
                 required
               />
@@ -127,7 +137,7 @@ function CreateTournamentPage() {
             </div>
 
             <div>
-              <Label htmlFor="format">Формат *</Label>
+              <Label htmlFor="format">{t('create.format')}</Label>
               <Select value={form.format} onValueChange={(v) => setForm((f) => ({ ...f, format: v }))}>
                 <SelectTrigger id="format">
                   <SelectValue />
@@ -145,13 +155,13 @@ function CreateTournamentPage() {
 
             {form.format === 'SWISS' && (
               <div>
-                <Label htmlFor="swiss-rounds">Количество раундов (Швейцарка)</Label>
+                <Label htmlFor="swiss-rounds">{t('create.swissRounds')}</Label>
                 <Input
                   id="swiss-rounds"
                   type="number"
                   value={form.swissRounds}
                   onChange={(e) => setForm((f) => ({ ...f, swissRounds: e.target.value }))}
-                  placeholder={`По умолчанию: ceil(log2(участников))`}
+                  placeholder={t('create.swissRoundsPlaceholder')}
                   min="1"
                   max="20"
                 />
@@ -159,7 +169,7 @@ function CreateTournamentPage() {
             )}
 
             <div>
-              <Label htmlFor="max">Максимум участников *</Label>
+              <Label htmlFor="max">{t('create.maxParticipants')}</Label>
               <Input
                 id="max"
                 type="number"
@@ -172,7 +182,7 @@ function CreateTournamentPage() {
             </div>
 
             <div>
-              <Label htmlFor="logo">URL логотипа</Label>
+              <Label htmlFor="logo">{t('create.logo')}</Label>
               <Input
                 id="logo"
                 type="url"
@@ -183,12 +193,12 @@ function CreateTournamentPage() {
             </div>
 
             <div>
-              <Label htmlFor="info">Описание</Label>
+              <Label htmlFor="info">{t('create.description')}</Label>
               <Textarea
                 id="info"
                 value={form.info}
                 onChange={(e) => setForm((f) => ({ ...f, info: e.target.value }))}
-                placeholder="Правила, призы, условия участия..."
+                placeholder={t('create.descriptionPlaceholder')}
                 rows={4}
               />
             </div>
@@ -196,11 +206,11 @@ function CreateTournamentPage() {
         </Card>
 
         <Card className="mt-4">
-          <CardHeader><CardTitle className="text-lg">Даты</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">{t('create.dates')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="reg-start">Начало регистрации</Label>
+                <Label htmlFor="reg-start">{t('create.registrationStart')}</Label>
                 <Input
                   id="reg-start"
                   type="datetime-local"
@@ -209,7 +219,7 @@ function CreateTournamentPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="reg-end">Конец регистрации</Label>
+                <Label htmlFor="reg-end">{t('create.registrationEnd')}</Label>
                 <Input
                   id="reg-end"
                   type="datetime-local"
@@ -222,16 +232,26 @@ function CreateTournamentPage() {
         </Card>
 
         <Card className="mt-4">
-          <CardHeader><CardTitle className="text-lg">Настройки</CardTitle></CardHeader>
-          <CardContent>
+          <CardHeader><CardTitle className="text-lg">{t('create.settings')}</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-sm">Только организатор устанавливает результаты</p>
-                <p className="text-xs text-muted-foreground">Если выключено, участники могут сами вводить счёт матча</p>
+                <p className="font-medium text-sm">{t('create.onlyOrganizerResults')}</p>
+                <p className="text-xs text-muted-foreground">{t('create.onlyOrganizerResultsHint')}</p>
               </div>
               <Switch
                 checked={form.onlyOrganizerSetsResults}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, onlyOrganizerSetsResults: v }))}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm">{t('create.openRegistrationNow')}</p>
+                <p className="text-xs text-muted-foreground">{t('create.openRegistrationNowHint')}</p>
+              </div>
+              <Switch
+                checked={form.openRegistrationNow}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, openRegistrationNow: v }))}
               />
             </div>
           </CardContent>
@@ -243,10 +263,10 @@ function CreateTournamentPage() {
 
         <div className="mt-6 flex gap-3 justify-end">
           <Button type="button" variant="outline" onClick={() => navigate({ to: '/' })}>
-            Отмена
+            {t('btn.cancel')}
           </Button>
           <Button type="submit" disabled={createMutation.isPending}>
-            {createMutation.isPending ? 'Создание...' : 'Создать турнир'}
+            {createMutation.isPending ? t('create.creating') : t('create.submit')}
           </Button>
         </div>
       </form>

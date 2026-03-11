@@ -144,6 +144,47 @@ export default async function matchRoutes(fastify: FastifyInstance) {
           });
         }
 
+        // ── Assign final placements ──────────────────────────────────────────
+        const format = match.tournament.format;
+
+        // Elimination / Mixed playoff final: no next match, not a group-stage match
+        if (!fullMatch?.nextMatchId && !match.groupId &&
+            ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED'].includes(format)) {
+          if (finalWinnerId) {
+            await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
+          }
+          const finalLoserId = finalWinnerId === match.player1Id ? match.player2Id : match.player1Id;
+          if (finalLoserId) {
+            await prisma.tournamentParticipant.update({ where: { id: finalLoserId }, data: { finalResult: '2' } });
+          }
+          // 3rd place: losers of the two semi-final matches that fed into this one
+          const semis = await prisma.match.findMany({ where: { nextMatchId: id, isFinished: true } });
+          for (const sf of semis) {
+            const sfLoser = sf.winnerId === sf.player1Id ? sf.player2Id : sf.player1Id;
+            if (sfLoser) {
+              await prisma.tournamentParticipant.updateMany({
+                where: { id: sfLoser, finalResult: null },
+                data: { finalResult: '3' },
+              });
+            }
+          }
+          await prisma.tournament.update({
+            where: { id: match.tournament.id },
+            data: { status: 'FINISHED', tournamentEnd: new Date() },
+          });
+        }
+
+        // Round Robin: check if all matches are now done
+        if (format === 'ROUND_ROBIN') {
+          const remaining = await prisma.match.count({
+            where: { tournamentId: match.tournament.id, isFinished: false },
+          });
+          if (remaining === 0) {
+            await finalizeRoundRobinResults(match.tournament.id);
+          }
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         // Check Swiss: all matches in round finished? Generate next round
         const tournament = await prisma.tournament.findUnique({
           where: { id: match.tournament.id },
@@ -174,6 +215,17 @@ export default async function matchRoutes(fastify: FastifyInstance) {
                 where: { id: tournament.id },
                 data: { status: 'FINISHED', tournamentEnd: new Date() },
               });
+              // Set final placements by Swiss standings
+              const participantIds = tournament.participants.map((p) => p.id);
+              const standings = await getSwissStandings(tournament.id, participantIds);
+              standings.sort((a, b) => b.points - a.points || b.buchholz - a.buchholz);
+              const places = ['1', '2', '3'];
+              for (let i = 0; i < Math.min(3, standings.length); i++) {
+                await prisma.tournamentParticipant.update({
+                  where: { id: standings[i].participantId },
+                  data: { finalResult: places[i] },
+                });
+              }
             }
           } catch { /* ignore json parse errors */ }
         }
@@ -237,6 +289,24 @@ async function checkAndGenerateMixedPlayoff(tournamentId: number, allParticipant
     where: { id: tournamentId },
     data: { gridJson: JSON.stringify({ ...meta, playoffStarted: true }) },
   });
+}
+
+async function finalizeRoundRobinResults(tournamentId: number) {
+  const participants = await prisma.tournamentParticipant.findMany({ where: { tournamentId } });
+  const wins: Record<number, number> = {};
+  for (const p of participants) wins[p.id] = 0;
+
+  const matches = await prisma.match.findMany({ where: { tournamentId, isFinished: true } });
+  for (const m of matches) {
+    if (m.winnerId) wins[m.winnerId] = (wins[m.winnerId] ?? 0) + 1;
+  }
+
+  const sorted = Object.entries(wins).sort(([, a], [, b]) => b - a).map(([id]) => Number(id));
+  const places = ['1', '2', '3'];
+  for (let i = 0; i < Math.min(3, sorted.length); i++) {
+    await prisma.tournamentParticipant.update({ where: { id: sorted[i] }, data: { finalResult: places[i] } });
+  }
+  await prisma.tournament.update({ where: { id: tournamentId }, data: { status: 'FINISHED', tournamentEnd: new Date() } });
 }
 
 function computeGroupStandings(group: any) {

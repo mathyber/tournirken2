@@ -33,6 +33,9 @@ export const tournamentsApi = {
 
   finalizeGrid: (id: number, data: any) =>
     api.post(`/tournaments/${id}/grid/finalize`, data).then((r) => r.data),
+
+  openRegistration: (id: number) =>
+    api.post(`/tournaments/${id}/open-registration`).then((r) => r.data),
 };
 
 export const gamesApi = {

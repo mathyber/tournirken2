@@ -6,9 +6,11 @@ import { Label } from './ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { authApi } from '../api/auth';
 import { useAuthStore } from '../stores/auth';
+import { useTranslation } from 'react-i18next';
 
 export function AuthForms() {
   const { login } = useAuthStore();
+  const { t } = useTranslation();
 
   const [loginForm, setLoginForm] = useState({ login: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ login: '', email: '', password: '' });
@@ -24,7 +26,7 @@ export function AuthForms() {
       const data = await authApi.login(loginForm);
       login(data.accessToken, data.user);
     } catch (err: any) {
-      setLoginError(err.response?.data?.error || 'Ошибка входа');
+      setLoginError(err.response?.data?.error || t('auth.loginError'));
     } finally {
       setLoading(false);
     }
@@ -38,7 +40,7 @@ export function AuthForms() {
       const data = await authApi.register(registerForm);
       login(data.accessToken, data.user);
     } catch (err: any) {
-      setRegisterError(err.response?.data?.error || 'Ошибка регистрации');
+      setRegisterError(err.response?.data?.error || t('auth.registerError'));
     } finally {
       setLoading(false);
     }
@@ -47,41 +49,41 @@ export function AuthForms() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Войти / Зарегистрироваться</CardTitle>
+        <CardTitle className="text-lg">{t('auth.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="login">
           <TabsList className="w-full mb-4">
-            <TabsTrigger value="login" className="flex-1">Вход</TabsTrigger>
-            <TabsTrigger value="register" className="flex-1">Регистрация</TabsTrigger>
+            <TabsTrigger value="login" className="flex-1">{t('auth.loginTab')}</TabsTrigger>
+            <TabsTrigger value="register" className="flex-1">{t('auth.registerTab')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="login">
             <form onSubmit={handleLogin} className="space-y-3">
               <div>
-                <Label htmlFor="login-username">Логин</Label>
+                <Label htmlFor="login-username">{t('auth.login')}</Label>
                 <Input
                   id="login-username"
                   value={loginForm.login}
                   onChange={(e) => setLoginForm((f) => ({ ...f, login: e.target.value }))}
-                  placeholder="Ваш логин"
+                  placeholder={t('auth.loginPlaceholder')}
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="login-password">Пароль</Label>
+                <Label htmlFor="login-password">{t('auth.password')}</Label>
                 <Input
                   id="login-password"
                   type="password"
                   value={loginForm.password}
                   onChange={(e) => setLoginForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder="Ваш пароль"
+                  placeholder={t('auth.passwordPlaceholder')}
                   required
                 />
               </div>
               {loginError && <p className="text-sm text-destructive">{loginError}</p>}
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Вход...' : 'Войти'}
+                {loading ? t('auth.loginLoading') : t('auth.loginButton')}
               </Button>
             </form>
           </TabsContent>
@@ -89,17 +91,17 @@ export function AuthForms() {
           <TabsContent value="register">
             <form onSubmit={handleRegister} className="space-y-3">
               <div>
-                <Label htmlFor="reg-login">Логин</Label>
+                <Label htmlFor="reg-login">{t('auth.login')}</Label>
                 <Input
                   id="reg-login"
                   value={registerForm.login}
                   onChange={(e) => setRegisterForm((f) => ({ ...f, login: e.target.value }))}
-                  placeholder="Латинские буквы, цифры, _"
+                  placeholder={t('auth.loginPlaceholderHint')}
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="reg-email">Email</Label>
+                <Label htmlFor="reg-email">{t('auth.email')}</Label>
                 <Input
                   id="reg-email"
                   type="email"
@@ -110,19 +112,19 @@ export function AuthForms() {
                 />
               </div>
               <div>
-                <Label htmlFor="reg-password">Пароль</Label>
+                <Label htmlFor="reg-password">{t('auth.password')}</Label>
                 <Input
                   id="reg-password"
                   type="password"
                   value={registerForm.password}
                   onChange={(e) => setRegisterForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder="Минимум 6 символов"
+                  placeholder={t('auth.passwordMinHint')}
                   required
                 />
               </div>
               {registerError && <p className="text-sm text-destructive">{registerError}</p>}
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Регистрация...' : 'Зарегистрироваться'}
+                {loading ? t('auth.registerLoading') : t('auth.registerButton')}
               </Button>
             </form>
           </TabsContent>

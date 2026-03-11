@@ -1,13 +1,6 @@
 import { Badge } from '../ui/badge';
 import { TournamentStatus } from '@tournirken/shared';
-
-const statusLabels: Record<string, string> = {
-  DRAFT: 'Черновик',
-  REGISTRATION: 'Регистрация',
-  ACTIVE: 'Идёт',
-  FINISHED: 'Завершён',
-  CANCELLED: 'Отменён',
-};
+import { useTranslation } from 'react-i18next';
 
 const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
   DRAFT: 'secondary',
@@ -18,9 +11,10 @@ const statusVariants: Record<string, 'default' | 'secondary' | 'destructive' | '
 };
 
 export function TournamentStatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   return (
     <Badge variant={statusVariants[status] ?? 'secondary'}>
-      {statusLabels[status] ?? status}
+      {t(`status.${status}`, { defaultValue: status })}
     </Badge>
   );
 }

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru, enUS } from 'date-fns/locale';
 import { matchesApi } from '../../api/matches';
 import { useAuthStore } from '../../stores/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -13,6 +13,8 @@ import { Textarea } from '../../components/ui/textarea';
 import { Switch } from '../../components/ui/switch';
 import { Badge } from '../../components/ui/badge';
 import { ArrowLeft, Trophy } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 export const Route = createFileRoute('/matches/$id')({
   component: MatchPage,
@@ -22,6 +24,8 @@ function MatchPage() {
   const { id } = Route.useParams();
   const { user, isAdmin, isModerator } = useAuthStore();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
   const matchId = parseInt(id);
 
   const { data: match, isLoading } = useQuery({
@@ -46,11 +50,11 @@ function MatchPage() {
       queryClient.invalidateQueries({ queryKey: ['match', matchId] });
       setError('');
     },
-    onError: (err: any) => setError(err.response?.data?.error || 'Ошибка сохранения результата'),
+    onError: (err: any) => setError(err.response?.data?.error || t('match.saveError')),
   });
 
   if (isLoading) return <div className="animate-pulse h-64 bg-muted rounded-lg" />;
-  if (!match) return <div className="text-center py-16 text-muted-foreground">Матч не найден</div>;
+  if (!match) return <div className="text-center py-16 text-muted-foreground">{t('match.notFound')}</div>;
 
   const confirmedResult = match.results?.find((r: any) => r.isFinal);
   const isOrganizer = match.tournament?.organizerId === user?.id || isAdmin() || isModerator();
@@ -68,7 +72,7 @@ function MatchPage() {
       <Link to="/tournaments/$id" params={{ id: String(match.tournamentId) }}>
         <Button variant="ghost" size="sm" className="gap-2">
           <ArrowLeft className="h-4 w-4" />
-          К турниру
+          {t('match.backToTournament')}
         </Button>
       </Link>
 
@@ -77,13 +81,13 @@ function MatchPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              {match.stage?.name ?? (match.roundNumber ? `Раунд ${match.roundNumber}` : 'Матч')}
+              {match.stage?.name ?? (match.roundNumber ? t('match.round', { n: match.roundNumber }) : 'Match')}
             </CardTitle>
             {match.isFinished
-              ? <Badge variant="success">Завершён</Badge>
+              ? <Badge variant="success">{t('match.finished')}</Badge>
               : match.isBye
-              ? <Badge variant="secondary">BYE</Badge>
-              : <Badge variant="outline">Ожидание</Badge>
+              ? <Badge variant="secondary">{t('match.bye')}</Badge>
+              : <Badge variant="outline">{t('match.waiting')}</Badge>
             }
           </div>
         </CardHeader>
@@ -107,7 +111,7 @@ function MatchPage() {
                   <span className="text-3xl font-mono font-bold">{confirmedResult.player2Score}</span>
                 </div>
               ) : match.isBye ? (
-                <span className="text-sm text-muted-foreground">BYE</span>
+                <span className="text-sm text-muted-foreground">{t('match.bye')}</span>
               ) : (
                 <span className="text-2xl text-muted-foreground">vs</span>
               )}
@@ -117,7 +121,7 @@ function MatchPage() {
               <Link to="/users/$login" params={{ login: match.player2?.user?.login }}>
                 <div className={`p-4 rounded-lg border-2 ${match.winner?.id === match.player2Id ? 'border-green-400 bg-green-50/30' : 'border-transparent'}`}>
                   {match.winner?.id === match.player2Id && <Trophy className="h-4 w-4 text-green-500 mx-auto mb-1" />}
-                  <p className="font-bold text-lg">{match.isBye ? 'BYE' : (match.player2?.user?.login ?? '—')}</p>
+                  <p className="font-bold text-lg">{match.isBye ? t('match.bye') : (match.player2?.user?.login ?? '—')}</p>
                 </div>
               </Link>
             </div>
@@ -128,11 +132,11 @@ function MatchPage() {
       {/* Set result form */}
       {canSetResult && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Ввести результат</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('match.enterResult')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <Label>Счёт {match.player1?.user?.login ?? 'Игрок 1'}</Label>
+                <Label>{t('match.score', { player: match.player1?.user?.login ?? 'P1' })}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -143,7 +147,7 @@ function MatchPage() {
               </div>
               <span className="text-xl text-muted-foreground mt-6">:</span>
               <div className="flex-1">
-                <Label>Счёт {match.player2?.user?.login ?? 'Игрок 2'}</Label>
+                <Label>{t('match.score', { player: match.player2?.user?.login ?? 'P2' })}</Label>
                 <Input
                   type="number"
                   min="0"
@@ -155,12 +159,12 @@ function MatchPage() {
             </div>
 
             <div>
-              <Label htmlFor="match-info">Комментарий (необязательно)</Label>
+              <Label htmlFor="match-info">{t('match.comment')}</Label>
               <Textarea
                 id="match-info"
                 value={info}
                 onChange={(e) => setInfo(e.target.value)}
-                placeholder="Дополнительная информация..."
+                placeholder={t('match.commentPlaceholder')}
                 rows={2}
               />
             </div>
@@ -168,7 +172,7 @@ function MatchPage() {
             {isOrganizer && (
               <div className="flex items-center gap-2">
                 <Switch id="is-final" checked={isFinal} onCheckedChange={setIsFinal} />
-                <Label htmlFor="is-final">Финальный результат</Label>
+                <Label htmlFor="is-final">{t('match.finalResult')}</Label>
               </div>
             )}
 
@@ -179,12 +183,12 @@ function MatchPage() {
               onClick={() => setResultMutation.mutate()}
               disabled={setResultMutation.isPending}
             >
-              {setResultMutation.isPending ? 'Сохранение...' : 'Сохранить результат'}
+              {setResultMutation.isPending ? t('match.savingResult') : t('match.saveResult')}
             </Button>
 
             {!isFinal && (
               <p className="text-xs text-muted-foreground text-center">
-                Матч завершится автоматически, когда оба участника введут одинаковый счёт
+                {t('match.autoFinish')}
               </p>
             )}
           </CardContent>
@@ -194,7 +198,7 @@ function MatchPage() {
       {/* Result history */}
       {match.results?.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">История результатов</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('match.history')}</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {match.results.map((r: any) => (
               <div key={r.id} className={`flex items-center justify-between p-3 rounded-md border ${r.isFinal ? 'bg-green-50/30 border-green-400' : ''}`}>
@@ -204,8 +208,8 @@ function MatchPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">@{r.setByUser?.login}</p>
-                  <p className="text-xs text-muted-foreground">{format(new Date(r.createdAt), 'd MMM HH:mm', { locale: ru })}</p>
-                  {r.isFinal && <Badge variant="success" className="text-xs mt-1">Подтверждён</Badge>}
+                  <p className="text-xs text-muted-foreground">{format(new Date(r.createdAt), 'd MMM HH:mm', { locale: dateLocale })}</p>
+                  {r.isFinal && <Badge variant="success" className="text-xs mt-1">{t('match.confirmed')}</Badge>}
                 </div>
               </div>
             ))}

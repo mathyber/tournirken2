@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
-import { badRequest, forbidden, notFound, unauthorized } from '../lib/errors';
+import { badRequest, forbidden, notFound } from '../lib/errors';
 import {
   CreateTournamentSchema,
   UpdateTournamentSchema,
@@ -76,14 +77,23 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     const { page, limit, name, game, status } = result.data;
 
     const where: any = {};
-    if (name) where.tournamentName = { name: { contains: name } };
-    if (game) {
-      where.tournamentName = {
-        ...where.tournamentName,
-        game: { name: { contains: game } },
-      };
-    }
     if (status) where.status = status;
+
+    // Case-insensitive search via LOWER() for SQLite
+    if (name || game) {
+      const conditions: Prisma.Sql[] = [];
+      if (name) conditions.push(Prisma.sql`LOWER(tn.name) LIKE LOWER(${'%' + name + '%'})`);
+      if (game) conditions.push(Prisma.sql`LOWER(g.name) LIKE LOWER(${'%' + game + '%'})`);
+      if (status) conditions.push(Prisma.sql`t.status = ${status}`);
+      const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
+      const idsResult = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT t.id FROM Tournament t
+        JOIN TournamentName tn ON t.nameId = tn.id
+        JOIN Game g ON tn.gameId = g.id
+        ${whereClause}
+      `;
+      where.id = { in: idsResult.map((r) => r.id) };
+    }
 
     const [total, tournaments] = await Promise.all([
       prisma.tournament.count({ where }),
@@ -368,6 +378,35 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
     return reply.send(matches);
   });
+
+  // POST /api/tournaments/:id/open-registration
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/open-registration',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const id = parseInt(request.params.id);
+      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+
+      const tournament = await prisma.tournament.findUnique({ where: { id } });
+      if (!tournament) return notFound(reply, 'Турнир не найден');
+
+      const isOrganizer = tournament.organizerId === request.userId;
+      const isAdmin = request.userRoles?.includes('ADMIN') || request.userRoles?.includes('MODERATOR');
+      if (!isOrganizer && !isAdmin) return forbidden(reply);
+
+      if (tournament.status !== 'DRAFT') {
+        return badRequest(reply, 'Открыть регистрацию можно только из статуса DRAFT');
+      }
+
+      const updated = await prisma.tournament.update({
+        where: { id },
+        data: { status: 'REGISTRATION' },
+        include: TOURNAMENT_INCLUDE,
+      });
+
+      return reply.send(formatTournament(updated));
+    }
+  );
 
   // GET /api/tournaments/:id/groups
   fastify.get<{ Params: { id: string } }>('/:id/groups', async (request, reply) => {

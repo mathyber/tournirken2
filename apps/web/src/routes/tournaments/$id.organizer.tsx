@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactFlow, {
@@ -12,15 +12,17 @@ import ReactFlow, {
   Panel,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { tournamentsApi } from '../../api/tournaments';
+import { tournamentsApi, gamesApi } from '../../api/tournaments';
 import { useAuthStore } from '../../stores/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Badge } from '../../components/ui/badge';
-import { ArrowLeft, Save, Play, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Save, Play, AlertTriangle, Users } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const Route = createFileRoute('/tournaments/$id/organizer')({
   component: OrganizerPage,
@@ -31,6 +33,7 @@ function OrganizerPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const tournamentId = parseInt(id);
 
   const { data: tournament, isLoading } = useQuery({
@@ -49,7 +52,7 @@ function OrganizerPage() {
     enabled: tournament?.status === 'ACTIVE' || tournament?.status === 'FINISHED',
   });
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [nodes, , onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [finalizeError, setFinalizeError] = useState('');
   const [finalizeLoading, setFinalizeLoading] = useState(false);
@@ -57,7 +60,7 @@ function OrganizerPage() {
   // Check organizer access
   if (!isLoading && tournament && user?.id !== tournament.organizer?.id) {
     if (!useAuthStore.getState().isAdmin()) {
-      return <div className="text-center py-16 text-muted-foreground">Нет доступа</div>;
+      return <div className="text-center py-16 text-muted-foreground">{t('organizer.noAccess')}</div>;
     }
   }
 
@@ -79,7 +82,7 @@ function OrganizerPage() {
       queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId] });
       navigate({ to: '/tournaments/$id', params: { id } });
     } catch (err: any) {
-      setFinalizeError(err.response?.data?.error || 'Ошибка запуска турнира');
+      setFinalizeError(err.response?.data?.error || t('organizer.launchError'));
     } finally {
       setFinalizeLoading(false);
     }
@@ -91,7 +94,7 @@ function OrganizerPage() {
   );
 
   if (isLoading) return <div className="animate-pulse h-96 bg-muted rounded-lg" />;
-  if (!tournament) return <div className="text-center py-16">Турнир не найден</div>;
+  if (!tournament) return <div className="text-center py-16">{t('organizer.notFound')}</div>;
 
   return (
     <div className="space-y-4">
@@ -99,10 +102,10 @@ function OrganizerPage() {
         <Link to="/tournaments/$id" params={{ id }}>
           <Button variant="ghost" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
-            Назад
+            {t('organizer.back')}
           </Button>
         </Link>
-        <h1 className="text-xl font-bold">Панель организатора: {tournament.name}</h1>
+        <h1 className="text-xl font-bold">{t('organizer.title', { name: tournament.name })}</h1>
         <Badge variant={tournament.status === 'ACTIVE' ? 'success' : 'secondary'}>
           {tournament.status}
         </Badge>
@@ -110,8 +113,11 @@ function OrganizerPage() {
 
       <Tabs defaultValue="bracket">
         <TabsList>
-          <TabsTrigger value="bracket">Турнирная сетка</TabsTrigger>
-          <TabsTrigger value="matches">Матчи и группы</TabsTrigger>
+          <TabsTrigger value="bracket">{t('organizer.tabBracket')}</TabsTrigger>
+          <TabsTrigger value="matches">{t('organizer.tabMatches')}</TabsTrigger>
+          {(tournament.status === 'DRAFT' || tournament.status === 'REGISTRATION') && (
+            <TabsTrigger value="settings">{t('organizer.tabSettings')}</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="bracket" className="mt-4">
@@ -134,11 +140,11 @@ function OrganizerPage() {
               {/* Participant list */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Участники ({participants.length})</CardTitle>
+                  <CardTitle className="text-base">{t('organizer.participants', { count: participants.length })}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {participants.length < 2 ? (
-                    <p className="text-sm text-muted-foreground">Нужно минимум 2 участника для запуска</p>
+                    <p className="text-sm text-muted-foreground">{t('organizer.minParticipants')}</p>
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {participants.map((p: any, idx: number) => (
@@ -155,7 +161,7 @@ function OrganizerPage() {
               {/* Bracket editor canvas */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Редактор сетки</CardTitle>
+                  <CardTitle className="text-base">{t('organizer.bracketEditor')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="border rounded-lg overflow-hidden bg-muted/10" style={{ height: '50vh' }}>
@@ -178,7 +184,7 @@ function OrganizerPage() {
                           disabled={saveDraftMutation.isPending}
                         >
                           <Save className="h-3.5 w-3.5" />
-                          Сохранить черновик
+                          {t('organizer.saveDraft')}
                         </Button>
                       </Panel>
                     </ReactFlow>
@@ -192,10 +198,9 @@ function OrganizerPage() {
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <p className="font-medium">Запустить турнир</p>
+                      <p className="font-medium">{t('organizer.launchTitle')}</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        После запуска регистрация закрывается, автоматически генерируются матчи в соответствии с форматом "{tournament.format}".
-                        Это действие необратимо.
+                        {t('organizer.launchDesc', { format: tournament.format })}
                       </p>
                       {finalizeError && (
                         <p className="text-sm text-destructive mt-2">{finalizeError}</p>
@@ -207,7 +212,7 @@ function OrganizerPage() {
                       disabled={finalizeLoading || participants.length < 2}
                     >
                       <Play className="h-4 w-4" />
-                      {finalizeLoading ? 'Запуск...' : 'Запустить'}
+                      {finalizeLoading ? t('organizer.launching') : t('organizer.launch')}
                     </Button>
                   </div>
                 </CardContent>
@@ -218,7 +223,7 @@ function OrganizerPage() {
 
         <TabsContent value="matches" className="mt-4">
           {matches.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">Матчи появятся после запуска турнира</p>
+            <p className="text-center py-8 text-muted-foreground">{t('organizer.noMatches')}</p>
           ) : (
             <div className="space-y-2">
               {matches.map((m: any) => (
@@ -227,13 +232,140 @@ function OrganizerPage() {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          {tournament.status === 'DRAFT' && (
+            <OpenRegistrationCard tournamentId={tournamentId} queryClient={queryClient} />
+          )}
+          <EditTournamentCard tournament={tournament} tournamentId={tournamentId} queryClient={queryClient} />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
+function OpenRegistrationCard({ tournamentId, queryClient }: { tournamentId: number; queryClient: any }) {
+  const { t } = useTranslation();
+  const [error, setError] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => tournamentsApi.openRegistration(tournamentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId] });
+      setError('');
+    },
+    onError: (err: any) => setError(err.response?.data?.error || t('organizer.openRegistrationError')),
+  });
+
+  return (
+    <Card className="border-blue-200 bg-blue-50/30 dark:bg-blue-900/10">
+      <CardContent className="pt-6">
+        <div className="flex items-start gap-3">
+          <Users className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">{t('organizer.openRegistrationTitle')}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t('organizer.openRegistrationDesc')}</p>
+            {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+          </div>
+          <Button
+            className="gap-2 flex-shrink-0"
+            variant="outline"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? t('organizer.openingRegistration') : t('organizer.openRegistration')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EditTournamentCard({ tournament, tournamentId, queryClient }: { tournament: any; tournamentId: number; queryClient: any }) {
+  const { t } = useTranslation();
+  const { data: games = [] } = useQuery({ queryKey: ['games'], queryFn: gamesApi.list });
+  const [form, setForm] = useState({
+    tournamentName: tournament.name ?? '',
+    gameName: tournament.game?.name ?? '',
+    maxParticipants: String(tournament.maxParticipants ?? 16),
+    info: tournament.info ?? '',
+    registrationStart: tournament.registrationStart ? new Date(tournament.registrationStart).toISOString().slice(0, 16) : '',
+    registrationEnd: tournament.registrationEnd ? new Date(tournament.registrationEnd).toISOString().slice(0, 16) : '',
+  });
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => tournamentsApi.update(tournamentId, {
+      tournamentName: form.tournamentName || undefined,
+      gameName: form.gameName || undefined,
+      maxParticipants: parseInt(form.maxParticipants),
+      info: form.info || undefined,
+      registrationStart: form.registrationStart ? new Date(form.registrationStart) : null,
+      registrationEnd: form.registrationEnd ? new Date(form.registrationEnd) : null,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId] });
+      setSuccess(true);
+      setError('');
+      setTimeout(() => setSuccess(false), 2000);
+    },
+    onError: (err: any) => setError(err.response?.data?.error || t('organizer.editError')),
+  });
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">{t('organizer.editTitle')}</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>{t('create.tournamentName')}</Label>
+            <Input value={form.tournamentName} onChange={(e) => setForm((f) => ({ ...f, tournamentName: e.target.value }))} />
+          </div>
+          <div>
+            <Label>{t('create.game')}</Label>
+            <Input
+              value={form.gameName}
+              onChange={(e) => setForm((f) => ({ ...f, gameName: e.target.value }))}
+              list="edit-games-list"
+            />
+            <datalist id="edit-games-list">
+              {games.map((g: any) => <option key={g.id} value={g.name} />)}
+            </datalist>
+          </div>
+          <div>
+            <Label>{t('create.maxParticipants')}</Label>
+            <Input type="number" min="2" max="512" value={form.maxParticipants} onChange={(e) => setForm((f) => ({ ...f, maxParticipants: e.target.value }))} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>{t('create.registrationStart')}</Label>
+            <Input type="datetime-local" value={form.registrationStart} onChange={(e) => setForm((f) => ({ ...f, registrationStart: e.target.value }))} />
+          </div>
+          <div>
+            <Label>{t('create.registrationEnd')}</Label>
+            <Input type="datetime-local" value={form.registrationEnd} onChange={(e) => setForm((f) => ({ ...f, registrationEnd: e.target.value }))} />
+          </div>
+        </div>
+        <div>
+          <Label>{t('create.description')}</Label>
+          <Textarea rows={3} value={form.info} onChange={(e) => setForm((f) => ({ ...f, info: e.target.value }))} />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {success && <p className="text-sm text-green-600">{t('organizer.editSuccess')}</p>}
+        <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="gap-2">
+          <Save className="h-4 w-4" />
+          {mutation.isPending ? t('btn.saving') : t('btn.save')}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function OrganizerMatchRow({ match, tournamentId, queryClient }: { match: any; tournamentId: number; queryClient: any }) {
   const { matchesApi } = require('../../api/matches');
+  const { t } = useTranslation();
   const [score1, setScore1] = useState('');
   const [score2, setScore2] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -257,16 +389,16 @@ function OrganizerMatchRow({ match, tournamentId, queryClient }: { match: any; t
   return (
     <div className="flex items-center gap-3 p-3 rounded-md border">
       <div className="flex-1 text-sm">
-        <span className="text-muted-foreground text-xs">{match.stage?.name ?? `Раунд ${match.roundNumber}`}</span>
+        <span className="text-muted-foreground text-xs">{match.stage?.name ?? (match.roundNumber ? t('match.round', { n: match.roundNumber }) : '')}</span>
         <div className="flex items-center gap-2 mt-1">
           <span className="font-medium">{match.player1?.user?.login ?? '—'}</span>
           <span className="text-muted-foreground">vs</span>
-          <span className="font-medium">{match.isBye ? 'BYE' : (match.player2?.user?.login ?? '—')}</span>
+          <span className="font-medium">{match.isBye ? t('match.bye') : (match.player2?.user?.login ?? '—')}</span>
         </div>
       </div>
       {match.isFinished ? (
         <Badge variant="secondary" className="text-xs">
-          {result ? `${result.player1Score}:${result.player2Score}` : 'Завершён'}
+          {result ? `${result.player1Score}:${result.player2Score}` : t('match.finished')}
         </Badge>
       ) : match.player1Id && match.player2Id && !match.isBye ? (
         <div className="flex items-center gap-2">
@@ -292,7 +424,7 @@ function OrganizerMatchRow({ match, tournamentId, queryClient }: { match: any; t
           </Button>
         </div>
       ) : (
-        <Badge variant="outline" className="text-xs">Ожидание</Badge>
+        <Badge variant="outline" className="text-xs">{t('match.waiting')}</Badge>
       )}
     </div>
   );

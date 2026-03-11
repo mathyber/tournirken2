@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../api/users';
@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { TournamentStatusBadge } from '../components/tournament/TournamentStatusBadge';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru, enUS } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 
 export const Route = createFileRoute('/admin')({
   component: AdminPage,
@@ -19,28 +21,23 @@ export const Route = createFileRoute('/admin')({
 
 const ROLES = ['USER', 'MODERATOR', 'ADMIN'];
 
-const roleLabels: Record<string, string> = {
-  USER: 'Пользователь',
-  MODERATOR: 'Модератор',
-  ADMIN: 'Администратор',
-};
-
 function AdminPage() {
   const { user, isModerator } = useAuthStore();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   if (!user || !isModerator()) {
-    return <div className="text-center py-16 text-muted-foreground">Нет доступа</div>;
+    return <div className="text-center py-16 text-muted-foreground">{t('admin.noAccess')}</div>;
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Администрирование</h1>
+      <h1 className="text-2xl font-bold">{t('admin.title')}</h1>
 
       <Tabs defaultValue="users">
         <TabsList>
-          <TabsTrigger value="users">Пользователи</TabsTrigger>
-          <TabsTrigger value="tournaments">Турниры</TabsTrigger>
+          <TabsTrigger value="users">{t('admin.tabUsers')}</TabsTrigger>
+          <TabsTrigger value="tournaments">{t('admin.tabTournaments')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="mt-4">
@@ -56,6 +53,8 @@ function AdminPage() {
 }
 
 function UsersTable({ queryClient, isAdmin }: { queryClient: any; isAdmin: boolean }) {
+  const { t } = useTranslation();
+  const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin-users'],
     queryFn: adminApi.users,
@@ -70,17 +69,17 @@ function UsersTable({ queryClient, isAdmin }: { queryClient: any; isAdmin: boole
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Пользователи ({users.length})</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-base">{t('admin.usersCount', { count: users.length })}</CardTitle></CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-muted-foreground">
-                <th className="text-left pb-2 pr-4">Логин</th>
-                <th className="text-left pb-2 pr-4">Email</th>
-                <th className="text-left pb-2 pr-4">Роли</th>
-                <th className="text-left pb-2">Дата</th>
-                {isAdmin && <th className="text-left pb-2">Действия</th>}
+                <th className="text-left pb-2 pr-4">{t('admin.colLogin')}</th>
+                <th className="text-left pb-2 pr-4">{t('admin.colEmail')}</th>
+                <th className="text-left pb-2 pr-4">{t('admin.colRoles')}</th>
+                <th className="text-left pb-2">{t('admin.colDate')}</th>
+                {isAdmin && <th className="text-left pb-2">{t('admin.colActions')}</th>}
               </tr>
             </thead>
             <tbody>
@@ -96,12 +95,11 @@ function UsersTable({ queryClient, isAdmin }: { queryClient: any; isAdmin: boole
                     </div>
                   </td>
                   <td className="py-2 pr-4 text-muted-foreground text-xs">
-                    {format(new Date(u.createdAt), 'd MMM yyyy', { locale: ru })}
+                    {format(new Date(u.createdAt), 'd MMM yyyy', { locale: dateLocale })}
                   </td>
                   {isAdmin && (
                     <td className="py-2">
                       <RoleEditor
-                        userId={u.id}
                         currentRoles={u.roles}
                         onUpdate={(roles) => updateRolesMutation.mutate({ id: u.id, roles })}
                       />
@@ -117,11 +115,11 @@ function UsersTable({ queryClient, isAdmin }: { queryClient: any; isAdmin: boole
   );
 }
 
-function RoleEditor({ userId, currentRoles, onUpdate }: {
-  userId: number;
+function RoleEditor({ currentRoles, onUpdate }: {
   currentRoles: string[];
   onUpdate: (roles: string[]) => void;
 }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string[]>(currentRoles);
   const [changed, setChanged] = useState(false);
 
@@ -148,7 +146,7 @@ function RoleEditor({ userId, currentRoles, onUpdate }: {
       </div>
       {changed && (
         <Button size="sm" className="h-6 text-xs" onClick={() => { onUpdate(selected); setChanged(false); }}>
-          Сохранить
+          {t('btn.save')}
         </Button>
       )}
     </div>
@@ -156,6 +154,7 @@ function RoleEditor({ userId, currentRoles, onUpdate }: {
 }
 
 function TournamentsTable({ queryClient }: { queryClient: any }) {
+  const { t } = useTranslation();
   const { data, isLoading } = useQuery({
     queryKey: ['admin-tournaments'],
     queryFn: () => tournamentsApi.list({ limit: 100 }),
@@ -172,38 +171,38 @@ function TournamentsTable({ queryClient }: { queryClient: any }) {
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Турниры ({tournaments.length})</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-base">{t('admin.tournamentsCount', { count: tournaments.length })}</CardTitle></CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-muted-foreground">
-                <th className="text-left pb-2 pr-4">Название</th>
-                <th className="text-left pb-2 pr-4">Игра</th>
-                <th className="text-left pb-2 pr-4">Организатор</th>
-                <th className="text-left pb-2 pr-4">Статус</th>
-                <th className="text-left pb-2">Действия</th>
+                <th className="text-left pb-2 pr-4">{t('admin.colName')}</th>
+                <th className="text-left pb-2 pr-4">{t('admin.colGame')}</th>
+                <th className="text-left pb-2 pr-4">{t('admin.colOrganizer')}</th>
+                <th className="text-left pb-2 pr-4">{t('admin.colStatus')}</th>
+                <th className="text-left pb-2">{t('admin.colActions')}</th>
               </tr>
             </thead>
             <tbody>
-              {tournaments.map((t: any) => (
-                <tr key={t.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2 pr-4 font-medium">{t.name}</td>
-                  <td className="py-2 pr-4 text-muted-foreground">{t.game?.name}</td>
-                  <td className="py-2 pr-4 text-muted-foreground">@{t.organizer?.login}</td>
-                  <td className="py-2 pr-4"><TournamentStatusBadge status={t.status} /></td>
+              {tournaments.map((tournament: any) => (
+                <tr key={tournament.id} className="border-b last:border-0 hover:bg-muted/50">
+                  <td className="py-2 pr-4 font-medium">{tournament.name}</td>
+                  <td className="py-2 pr-4 text-muted-foreground">{tournament.game?.name}</td>
+                  <td className="py-2 pr-4 text-muted-foreground">@{tournament.organizer?.login}</td>
+                  <td className="py-2 pr-4"><TournamentStatusBadge status={tournament.status} /></td>
                   <td className="py-2">
-                    {t.status !== 'CANCELLED' && (
+                    {tournament.status !== 'CANCELLED' && (
                       <Button
                         variant="destructive"
                         size="sm"
                         className="h-7 text-xs"
                         onClick={() => {
-                          if (confirm(`Отменить турнир "${t.name}"?`)) cancelMutation.mutate(t.id);
+                          if (confirm(t('admin.cancelConfirm', { name: tournament.name }))) cancelMutation.mutate(tournament.id);
                         }}
                         disabled={cancelMutation.isPending}
                       >
-                        Отменить
+                        {t('admin.cancelBtn')}
                       </Button>
                     )}
                   </td>

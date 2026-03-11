@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { useAuthStore } from '../stores/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,6 +10,7 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Separator } from '../components/ui/separator';
 import { Trophy, GamepadIcon, Medal, Users } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export const Route = createFileRoute('/profile')({
   component: ProfilePage,
@@ -17,7 +18,7 @@ export const Route = createFileRoute('/profile')({
 
 function ProfilePage() {
   const { user, setUser } = useAuthStore();
-  const queryClient = useQueryClient();
+  const { t } = useTranslation();
 
   const [emailForm, setEmailForm] = useState({ email: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
@@ -35,32 +36,32 @@ function ProfilePage() {
   const updateEmailMutation = useMutation({
     mutationFn: () => usersApi.updateEmail(emailForm.email),
     onSuccess: (data) => {
-      setEmailSuccess('Email изменён');
+      setEmailSuccess(t('profile.emailChanged'));
       setEmailError('');
       if (user) setUser({ ...user, email: data.email });
     },
-    onError: (err: any) => setEmailError(err.response?.data?.error || 'Ошибка'),
+    onError: (err: any) => setEmailError(err.response?.data?.error || t('profile.error')),
   });
 
   const updatePasswordMutation = useMutation({
     mutationFn: () => usersApi.updatePassword(passwordForm.currentPassword, passwordForm.newPassword),
     onSuccess: () => {
-      setPasswordSuccess('Пароль изменён');
+      setPasswordSuccess(t('profile.passwordChanged'));
       setPasswordError('');
       setPasswordForm({ currentPassword: '', newPassword: '' });
     },
-    onError: (err: any) => setPasswordError(err.response?.data?.error || 'Ошибка'),
+    onError: (err: any) => setPasswordError(err.response?.data?.error || t('profile.error')),
   });
 
   if (!user) {
-    return <div className="text-center py-16 text-muted-foreground">Войдите для просмотра профиля</div>;
+    return <div className="text-center py-16 text-muted-foreground">{t('profile.loginRequired')}</div>;
   }
 
   const stats = profile?.stats ?? {};
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Мой профиль</h1>
+      <h1 className="text-2xl font-bold">{t('profile.title')}</h1>
 
       {/* Profile info */}
       <Card>
@@ -87,22 +88,22 @@ function ProfilePage() {
         <div className="p-4 border rounded-lg text-center">
           <GamepadIcon className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
           <p className="text-xl font-bold">{stats.tournamentsPlayed ?? 0}</p>
-          <p className="text-xs text-muted-foreground">Турниров</p>
+          <p className="text-xs text-muted-foreground">{t('profile.statTournaments')}</p>
         </div>
         <div className="p-4 border rounded-lg text-center">
           <Trophy className="h-5 w-5 mx-auto mb-1 text-yellow-500" />
           <p className="text-xl font-bold">{stats.wins ?? 0}</p>
-          <p className="text-xs text-muted-foreground">Побед</p>
+          <p className="text-xs text-muted-foreground">{t('profile.statWins')}</p>
         </div>
         <div className="p-4 border rounded-lg text-center">
           <Medal className="h-5 w-5 mx-auto mb-1 text-gray-400" />
           <p className="text-xl font-bold">{stats.secondPlaces ?? 0}</p>
-          <p className="text-xs text-muted-foreground">Серебро</p>
+          <p className="text-xs text-muted-foreground">{t('profile.statSilver')}</p>
         </div>
         <div className="p-4 border rounded-lg text-center">
           <Users className="h-5 w-5 mx-auto mb-1 text-blue-500" />
           <p className="text-xl font-bold">{stats.organized ?? 0}</p>
-          <p className="text-xs text-muted-foreground">Организовал</p>
+          <p className="text-xs text-muted-foreground">{t('profile.statOrganized')}</p>
         </div>
       </div>
 
@@ -110,16 +111,16 @@ function ProfilePage() {
 
       {/* Change email */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Изменить Email</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t('profile.changeEmail')}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label htmlFor="new-email">Новый Email</Label>
+            <Label htmlFor="new-email">{t('profile.newEmail')}</Label>
             <Input
               id="new-email"
               type="email"
               value={emailForm.email}
               onChange={(e) => setEmailForm({ email: e.target.value })}
-              placeholder="новый@email.com"
+              placeholder="new@email.com"
             />
           </div>
           {emailError && <p className="text-sm text-destructive">{emailError}</p>}
@@ -128,17 +129,17 @@ function ProfilePage() {
             onClick={() => updateEmailMutation.mutate()}
             disabled={updateEmailMutation.isPending || !emailForm.email}
           >
-            {updateEmailMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            {updateEmailMutation.isPending ? t('btn.saving') : t('btn.save')}
           </Button>
         </CardContent>
       </Card>
 
       {/* Change password */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Изменить пароль</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{t('profile.changePassword')}</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <Label htmlFor="curr-pass">Текущий пароль</Label>
+            <Label htmlFor="curr-pass">{t('profile.currentPassword')}</Label>
             <Input
               id="curr-pass"
               type="password"
@@ -147,13 +148,13 @@ function ProfilePage() {
             />
           </div>
           <div>
-            <Label htmlFor="new-pass">Новый пароль</Label>
+            <Label htmlFor="new-pass">{t('profile.newPassword')}</Label>
             <Input
               id="new-pass"
               type="password"
               value={passwordForm.newPassword}
               onChange={(e) => setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
-              placeholder="Минимум 6 символов"
+              placeholder={t('auth.passwordMinHint')}
             />
           </div>
           {passwordError && <p className="text-sm text-destructive">{passwordError}</p>}
@@ -162,7 +163,7 @@ function ProfilePage() {
             onClick={() => updatePasswordMutation.mutate()}
             disabled={updatePasswordMutation.isPending || !passwordForm.currentPassword || !passwordForm.newPassword}
           >
-            {updatePasswordMutation.isPending ? 'Сохранение...' : 'Изменить пароль'}
+            {updatePasswordMutation.isPending ? t('btn.saving') : t('profile.changePasswordBtn')}
           </Button>
         </CardContent>
       </Card>

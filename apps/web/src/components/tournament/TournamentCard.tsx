@@ -1,8 +1,7 @@
-import React from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { Users, Calendar, Gamepad2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru, enUS } from 'date-fns/locale';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import { TournamentStatusBadge } from './TournamentStatusBadge';
@@ -10,24 +9,19 @@ import { useAuthStore } from '../../stores/auth';
 import { tournamentsApi } from '../../api/tournaments';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '../../lib/utils';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 interface TournamentCardProps {
   tournament: any;
   isParticipant?: boolean;
 }
 
-const formatLabels: Record<string, string> = {
-  SINGLE_ELIMINATION: 'Олимпийская',
-  DOUBLE_ELIMINATION: 'Двойное выбывание',
-  ROUND_ROBIN: 'Круговая',
-  SWISS: 'Швейцарская',
-  MIXED: 'Смешанная',
-};
-
 export function TournamentCard({ tournament, isParticipant }: TournamentCardProps) {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
 
   const joinMutation = useMutation({
     mutationFn: () => tournamentsApi.join(tournament.id),
@@ -42,34 +36,34 @@ export function TournamentCard({ tournament, isParticipant }: TournamentCardProp
 
   const getJoinButton = () => {
     if (!user) return (
-      <Button variant="outline" size="sm" disabled>Войдите для участия</Button>
+      <Button variant="outline" size="sm" disabled>{t('btn.loginToJoin')}</Button>
     );
     if (isOrganizer) return (
       <Link to="/tournaments/$id/organizer" params={{ id: String(tournament.id) }}>
-        <Button variant="secondary" size="sm">Панель организатора</Button>
+        <Button variant="secondary" size="sm">{t('btn.organizerPanel')}</Button>
       </Link>
     );
     if (isParticipant) return (
-      <Button variant="outline" size="sm" disabled className="text-green-600 border-green-600">✓ Участвуете</Button>
+      <Button variant="outline" size="sm" disabled className="text-green-600 border-green-600">{t('btn.joined')}</Button>
     );
     if (tournament.status === 'FINISHED') return (
-      <Button variant="outline" size="sm" disabled>Завершён</Button>
+      <Button variant="outline" size="sm" disabled>{t('btn.finished')}</Button>
     );
     if (tournament.status === 'CANCELLED') return (
-      <Button variant="outline" size="sm" disabled>Отменён</Button>
+      <Button variant="outline" size="sm" disabled>{t('btn.cancelled')}</Button>
     );
     if (tournament.status === 'ACTIVE') return (
-      <Button variant="outline" size="sm" disabled>Идёт</Button>
+      <Button variant="outline" size="sm" disabled>{t('btn.active')}</Button>
     );
     if (tournament.status !== 'REGISTRATION') return (
-      <Button variant="outline" size="sm" disabled>Регистрация закрыта</Button>
+      <Button variant="outline" size="sm" disabled>{t('btn.registrationClosed')}</Button>
     );
     if (isFull) return (
-      <Button variant="outline" size="sm" disabled>Нет мест</Button>
+      <Button variant="outline" size="sm" disabled>{t('btn.full')}</Button>
     );
     return (
       <Button size="sm" onClick={() => joinMutation.mutate()} disabled={joinMutation.isPending}>
-        {joinMutation.isPending ? 'Регистрация...' : 'Участвовать'}
+        {joinMutation.isPending ? t('btn.joining') : t('btn.join')}
       </Button>
     );
   };
@@ -85,14 +79,14 @@ export function TournamentCard({ tournament, isParticipant }: TournamentCardProp
             <Link to="/tournaments/$id" params={{ id: String(tournament.id) }}>
               <h3 className="font-semibold text-lg truncate hover:text-primary transition-colors">
                 {tournament.name}
-                {tournament.season && <span className="text-muted-foreground font-normal ml-2">Сезон {tournament.season}</span>}
+                {tournament.season && <span className="text-muted-foreground font-normal ml-2">{t('tournament.season', { n: tournament.season })}</span>}
               </h3>
             </Link>
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
               <Gamepad2 className="h-3.5 w-3.5 flex-shrink-0" />
               <span className="truncate">{tournament.game?.name}</span>
               <span className="text-xs opacity-50">·</span>
-              <span className="text-xs">{formatLabels[tournament.format] ?? tournament.format}</span>
+              <span className="text-xs">{t(`format.${tournament.format}_short`, { defaultValue: tournament.format })}</span>
             </div>
           </div>
           <TournamentStatusBadge status={tournament.status} />
@@ -112,7 +106,7 @@ export function TournamentCard({ tournament, isParticipant }: TournamentCardProp
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <Users className="h-3.5 w-3.5" />
-            <span>{tournament.participantCount} / {tournament.maxParticipants}</span>
+            <span>{t('tournament.participants', { count: tournament.participantCount, max: tournament.maxParticipants })}</span>
           </div>
           <Link to="/users/$login" params={{ login: tournament.organizer?.login }}>
             <span className="text-xs text-muted-foreground hover:text-foreground transition-colors">
@@ -124,7 +118,7 @@ export function TournamentCard({ tournament, isParticipant }: TournamentCardProp
         {tournament.registrationEnd && (
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />
-            <span>Регистрация до {format(new Date(tournament.registrationEnd), 'd MMM yyyy', { locale: ru })}</span>
+            <span>{t('tournament.registrationUntil', { date: format(new Date(tournament.registrationEnd), 'd MMM yyyy', { locale: dateLocale }) })}</span>
           </div>
         )}
 

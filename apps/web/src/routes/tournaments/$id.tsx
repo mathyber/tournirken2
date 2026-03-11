@@ -1,8 +1,7 @@
-import React from 'react';
 import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru, enUS } from 'date-fns/locale';
 import { Users, Calendar, Trophy, GitBranch, Settings } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments';
 import { useAuthStore } from '../../stores/auth';
@@ -12,23 +11,19 @@ import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { TournamentStatusBadge } from '../../components/tournament/TournamentStatusBadge';
 import { Separator } from '../../components/ui/separator';
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n';
 
 export const Route = createFileRoute('/tournaments/$id')({
   component: TournamentPage,
 });
 
-const formatLabels: Record<string, string> = {
-  SINGLE_ELIMINATION: 'Олимпийская система',
-  DOUBLE_ELIMINATION: 'Двойное выбывание',
-  ROUND_ROBIN: 'Круговая система',
-  SWISS: 'Швейцарская система',
-  MIXED: 'Смешанная',
-};
-
 function TournamentPage() {
   const { id } = Route.useParams();
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
   const { user } = useAuthStore();
+  const { t } = useTranslation();
+  const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
 
   // If a child route is active (organizer, bracket, groups), render it instead
   if (currentPath !== `/tournaments/${id}`) {
@@ -76,7 +71,7 @@ function TournamentPage() {
   });
 
   if (isLoading) return <div className="animate-pulse space-y-4"><div className="h-48 bg-muted rounded-lg" /></div>;
-  if (!tournament) return <div className="text-center py-16 text-muted-foreground">Турнир не найден</div>;
+  if (!tournament) return <div className="text-center py-16 text-muted-foreground">{t('tournament.notFoundPage')}</div>;
 
   const isOrganizer = user?.id === tournament.organizer?.id;
   const myParticipation = participants.find((p: any) => p.user?.id === user?.id);
@@ -99,7 +94,7 @@ function TournamentPage() {
             <div>
               <h1 className="text-3xl font-bold">
                 {tournament.name}
-                {tournament.season && <span className="text-muted-foreground text-xl font-normal ml-2">Сезон {tournament.season}</span>}
+                {tournament.season && <span className="text-muted-foreground text-xl font-normal ml-2">{t('tournament.season', { n: tournament.season })}</span>}
               </h1>
               <p className="text-muted-foreground">{tournament.game?.name}</p>
             </div>
@@ -109,14 +104,14 @@ function TournamentPage() {
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-1.5">
               <GitBranch className="h-4 w-4 text-muted-foreground" />
-              <span>{formatLabels[tournament.format] ?? tournament.format}</span>
+              <span>{t(`format.${tournament.format}`, { defaultValue: tournament.format })}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <span>{tournament.participantCount} / {tournament.maxParticipants} участников</span>
+              <span>{t('tournament.participants', { count: tournament.participantCount, max: tournament.maxParticipants })}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">Организатор: </span>
+              <span className="text-muted-foreground">{t('tournament.organizer')} </span>
               <Link to="/users/$login" params={{ login: tournament.organizer?.login }} className="hover:text-primary">
                 @{tournament.organizer?.login}
               </Link>
@@ -127,9 +122,9 @@ function TournamentPage() {
             <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
               <span>
-                Регистрация:
-                {tournament.registrationStart && ` с ${format(new Date(tournament.registrationStart), 'd MMM yyyy HH:mm', { locale: ru })}`}
-                {tournament.registrationEnd && ` до ${format(new Date(tournament.registrationEnd), 'd MMM yyyy HH:mm', { locale: ru })}`}
+                {t('tournament.registrationPeriod')}
+                {tournament.registrationStart && ` ${t('tournament.registrationFrom', { date: format(new Date(tournament.registrationStart), 'd MMM yyyy HH:mm', { locale: dateLocale }) })}`}
+                {tournament.registrationEnd && ` ${t('tournament.registrationTo', { date: format(new Date(tournament.registrationEnd), 'd MMM yyyy HH:mm', { locale: dateLocale }) })}`}
               </span>
             </div>
           )}
@@ -141,7 +136,7 @@ function TournamentPage() {
           <div className="flex gap-2 flex-wrap pt-2">
             {isOrganizer ? (
               <Link to="/tournaments/$id/organizer" params={{ id }}>
-                <Button className="gap-2"><Settings className="h-4 w-4" />Панель организатора</Button>
+                <Button className="gap-2"><Settings className="h-4 w-4" />{t('btn.organizerPanel')}</Button>
               </Link>
             ) : user ? (
               myParticipation ? (
@@ -151,7 +146,7 @@ function TournamentPage() {
                   onClick={() => leaveMutation.mutate()}
                   disabled={leaveMutation.isPending || ['ACTIVE', 'FINISHED'].includes(tournament.status)}
                 >
-                  {leaveMutation.isPending ? 'Выход...' : 'Покинуть турнир'}
+                  {leaveMutation.isPending ? t('btn.leaving') : t('btn.leave')}
                 </Button>
               ) : (
                 <Button
@@ -162,14 +157,14 @@ function TournamentPage() {
                     isFull
                   }
                 >
-                  {joinMutation.isPending ? 'Регистрация...' : isFull ? 'Нет мест' : 'Участвовать'}
+                  {joinMutation.isPending ? t('btn.joining') : isFull ? t('btn.full') : t('btn.join')}
                 </Button>
               )
             ) : null}
 
             {(tournament.status === 'ACTIVE' || tournament.status === 'FINISHED') && (
               <Link to="/tournaments/$id/bracket" params={{ id }}>
-                <Button variant="outline" className="gap-2"><Trophy className="h-4 w-4" />Турнирная сетка</Button>
+                <Button variant="outline" className="gap-2"><Trophy className="h-4 w-4" />{t('tournament.bracketBtn')}</Button>
               </Link>
             )}
           </div>
@@ -178,17 +173,62 @@ function TournamentPage() {
 
       <Separator />
 
+      {/* Podium for finished tournaments */}
+      {tournament.status === 'FINISHED' && (() => {
+        const top3 = [1, 2, 3]
+          .map((place) => ({ place, participant: participants.find((p: any) => p.finalResult === String(place)) }))
+          .filter((x) => x.participant);
+        if (top3.length === 0) return null;
+        const podiumOrder = [
+          top3.find((x) => x.place === 2),
+          top3.find((x) => x.place === 1),
+          top3.find((x) => x.place === 3),
+        ].filter(Boolean);
+        const heights = { 1: 'h-24', 2: 'h-16', 3: 'h-12' };
+        const colors = { 1: 'text-yellow-500', 2: 'text-slate-400', 3: 'text-amber-600' };
+        const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+        return (
+          <Card className="border-yellow-200 bg-gradient-to-b from-yellow-50/40 dark:from-yellow-900/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-yellow-500" />
+                {t('tournament.podium')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-end justify-center gap-3 pt-2">
+                {podiumOrder.map((item: any) => (
+                  <div key={item.place} className="flex flex-col items-center gap-1">
+                    <span className="text-2xl">{(medals as any)[item.place]}</span>
+                    <Link to="/users/$login" params={{ login: item.participant.user?.login }}>
+                      <span className={`text-sm font-semibold hover:underline ${(colors as any)[item.place]}`}>
+                        @{item.participant.user?.login}
+                      </span>
+                    </Link>
+                    <div className={`w-20 ${(heights as any)[item.place]} rounded-t-md flex items-center justify-center ${
+                      item.place === 1 ? 'bg-yellow-400/80' : item.place === 2 ? 'bg-slate-300/80' : 'bg-amber-600/60'
+                    }`}>
+                      <span className="text-white font-bold text-lg">{item.place}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Tabs */}
       <Tabs defaultValue="participants">
         <TabsList>
-          <TabsTrigger value="participants">Участники ({participants.length})</TabsTrigger>
-          {matches.length > 0 && <TabsTrigger value="matches">Матчи ({matches.length})</TabsTrigger>}
-          {groups.length > 0 && <TabsTrigger value="groups">Группы</TabsTrigger>}
+          <TabsTrigger value="participants">{t('tournament.tabParticipants', { count: participants.length })}</TabsTrigger>
+          {matches.length > 0 && <TabsTrigger value="matches">{t('tournament.tabMatches', { count: matches.length })}</TabsTrigger>}
+          {groups.length > 0 && <TabsTrigger value="groups">{t('tournament.tabGroups')}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="participants" className="mt-4">
           {participants.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">Участников пока нет</p>
+            <p className="text-muted-foreground text-center py-8">{t('tournament.noParticipants')}</p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               {participants.map((p: any) => (
@@ -196,7 +236,7 @@ function TournamentPage() {
                   <div className={`p-3 rounded-md border hover:bg-accent transition-colors ${p.user?.id === user?.id ? 'border-green-400 bg-green-50/30' : ''}`}>
                     <p className="font-medium text-sm truncate">@{p.user?.login}</p>
                     {p.finalResult && (
-                      <p className="text-xs text-muted-foreground">Место: {p.finalResult}</p>
+                      <p className="text-xs text-muted-foreground">{t('tournament.place', { n: p.finalResult })}</p>
                     )}
                   </div>
                 </Link>
@@ -218,8 +258,9 @@ function TournamentPage() {
 }
 
 function MatchesList({ matches, userId }: { matches: any[]; userId?: number }) {
+  const { t } = useTranslation();
   const grouped = matches.reduce((acc: any, m: any) => {
-    const key = m.roundNumber ? `Раунд ${m.roundNumber}` : (m.stage?.name ?? 'Другие матчи');
+    const key = m.stage?.name ?? (m.roundNumber ? t('match.round', { n: m.roundNumber }) : 'Other matches');
     if (!acc[key]) acc[key] = [];
     acc[key].push(m);
     return acc;
@@ -242,6 +283,7 @@ function MatchesList({ matches, userId }: { matches: any[]; userId?: number }) {
 }
 
 function MatchCard({ match, userId }: { match: any; userId?: number }) {
+  const { t } = useTranslation();
   const isMyMatch = match.player1?.user?.id === userId || match.player2?.user?.id === userId;
   const result = match.results?.[0];
 
@@ -255,7 +297,7 @@ function MatchCard({ match, userId }: { match: any; userId?: number }) {
         </div>
         <div className="w-20 text-center font-mono font-semibold">
           {match.isBye ? (
-            <span className="text-xs text-muted-foreground">BYE</span>
+            <span className="text-xs text-muted-foreground">{t('match.bye')}</span>
           ) : match.isFinished && result ? (
             <span>{result.player1Score} : {result.player2Score}</span>
           ) : (
@@ -269,9 +311,9 @@ function MatchCard({ match, userId }: { match: any; userId?: number }) {
         </div>
         <div className="w-20 text-right">
           {match.isFinished ? (
-            <Badge variant="secondary" className="text-xs">Завершён</Badge>
+            <Badge variant="secondary" className="text-xs">{t('match.finished')}</Badge>
           ) : (
-            <Badge variant="outline" className="text-xs">Ожидание</Badge>
+            <Badge variant="outline" className="text-xs">{t('match.waiting')}</Badge>
           )}
         </div>
       </div>
@@ -280,6 +322,7 @@ function MatchCard({ match, userId }: { match: any; userId?: number }) {
 }
 
 function GroupsList({ groups, tournamentId }: { groups: any[]; tournamentId: number }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       {groups.map((group: any) => (
@@ -288,7 +331,7 @@ function GroupsList({ groups, tournamentId }: { groups: any[]; tournamentId: num
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{group.name}</CardTitle>
               <Link to="/tournaments/$id/groups/$groupId" params={{ id: String(tournamentId), groupId: String(group.id) }}>
-                <Button variant="ghost" size="sm">Подробнее</Button>
+                <Button variant="ghost" size="sm">{t('btn.details')}</Button>
               </Link>
             </div>
           </CardHeader>
@@ -297,13 +340,13 @@ function GroupsList({ groups, tournamentId }: { groups: any[]; tournamentId: num
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground">
-                    <th className="text-left pb-2 w-8">#</th>
-                    <th className="text-left pb-2">Участник</th>
-                    <th className="text-center pb-2 w-10">В</th>
-                    <th className="text-center pb-2 w-10">Н</th>
-                    <th className="text-center pb-2 w-10">П</th>
-                    <th className="text-center pb-2 w-16">ГЗ:ГП</th>
-                    <th className="text-center pb-2 w-10">О</th>
+                    <th className="text-left pb-2 w-8">{t('group.rank')}</th>
+                    <th className="text-left pb-2">{t('group.participant')}</th>
+                    <th className="text-center pb-2 w-10">{t('group.wins')}</th>
+                    <th className="text-center pb-2 w-10">{t('group.draws')}</th>
+                    <th className="text-center pb-2 w-10">{t('group.losses')}</th>
+                    <th className="text-center pb-2 w-16">{t('group.goals')}</th>
+                    <th className="text-center pb-2 w-10">{t('group.points')}</th>
                   </tr>
                 </thead>
                 <tbody>
