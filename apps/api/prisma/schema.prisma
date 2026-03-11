@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  login        String   @unique
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles                UserRole[]
+  organizedTournaments Tournament[]           @relation("OrganizerTournaments")
+  participations       TournamentParticipant[]
+  matchResults         MatchResult[]
+}
+
+model UserRole {
+  id     Int    @id @default(autoincrement())
+  userId Int
+  role   String // USER, MODERATOR, ADMIN
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+}
+
+model Game {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+  info String?
+
+  tournamentNames TournamentName[]
+}
+
+model TournamentName {
+  id        Int    @id @default(autoincrement())
+  name      String
+  gameId    Int
+  creatorId Int
+
+  game        Game         @relation(fields: [gameId], references: [id])
+  tournaments Tournament[]
+
+  @@unique([name, gameId, creatorId])
+}
+
+model Tournament {
+  id                        Int      @id @default(autoincrement())
+  nameId                    Int
+  season                    Int?
+  organizerId               Int
+  info                      String?
+  logo                      String?
+  maxParticipants           Int
+  onlyOrganizerSetsResults  Boolean  @default(false)
+  format                    String   // TournamentFormat enum
+  status                    String   @default("DRAFT") // TournamentStatus enum
+  registrationStart         DateTime?
+  registrationEnd           DateTime?
+  tournamentStart           DateTime?
+  tournamentEnd             DateTime?
+  gridJson                  String?
+  swissRounds               Int?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  tournamentName TournamentName          @relation(fields: [nameId], references: [id])
+  organizer      User                    @relation("OrganizerTournaments", fields: [organizerId], references: [id])
+  participants   TournamentParticipant[]
+  groups         TournamentGroup[]
+  matches        Match[]
+}
+
+model TournamentParticipant {
+  id           Int      @id @default(autoincrement())
+  tournamentId Int
+  userId       Int
+  finalResult  String?
+  joinedAt     DateTime @default(now())
+
+  tournament    Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id])
+  groupParticipations GroupParticipant[]
+  matchesAsPlayer1    Match[]           @relation("Player1")
+  matchesAsPlayer2    Match[]           @relation("Player2")
+  matchesWon          Match[]           @relation("Winner")
+
+  @@unique([tournamentId, userId])
+}
+
+model TournamentGroup {
+  id           Int     @id @default(autoincrement())
+  tournamentId Int
+  name         String
+  pointsForWin Int     @default(3)
+  pointsForDraw Int    @default(1)
+  isFinished   Boolean @default(false)
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  participants GroupParticipant[]
+  matches      Match[]
+}
+
+model GroupParticipant {
+  id            Int @id @default(autoincrement())
+  groupId       Int
+  participantId Int
+
+  group       TournamentGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  participant TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, participantId])
+}
+
+model Stage {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  matches Match[]
+}
+
+model Match {
+  id           Int     @id @default(autoincrement())
+  tournamentId Int
+  stageId      Int?
+  groupId      Int?
+  roundNumber  Int?
+  player1Id    Int?
+  player2Id    Int?
+  isFinished   Boolean @default(false)
+  winnerId     Int?
+  isBye        Boolean @default(false)
+  nextMatchId  Int?
+  nextMatchSlot Int?   // 1 or 2 (which slot in the next match)
+
+  tournament Tournament            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  stage      Stage?                @relation(fields: [stageId], references: [id])
+  group      TournamentGroup?      @relation(fields: [groupId], references: [id])
+  player1    TournamentParticipant? @relation("Player1", fields: [player1Id], references: [id])
+  player2    TournamentParticipant? @relation("Player2", fields: [player2Id], references: [id])
+  winner     TournamentParticipant? @relation("Winner", fields: [winnerId], references: [id])
+  results    MatchResult[]
+}
+
+model MatchResult {
+  id           Int      @id @default(autoincrement())
+  matchId      Int
+  setByUserId  Int
+  player1Score Int
+  player2Score Int
+  info         String?
+  isFinal      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  setByUser User @relation(fields: [setByUserId], references: [id])
+}

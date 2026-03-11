@@ -1,0 +1,12 @@
+{
+  "tournamentName": "Чемпионат жопы",
+  "gameName": "Крестики-нолики",
+  "season": 1,
+  "format": "SINGLE_ELIMINATION",
+  "maxParticipants": 16,
+  "info": "А вот)))",
+  "logo": "https://static.richfamily.ru/photo/38/60/386016/1.webp",
+  "onlyOrganizerSetsResults": false,
+  "registrationStart": "2026-03-11T13:29",
+  "registrationEnd": "2026-03-12T13:29"
+}
