@@ -67,7 +67,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
     if (!result.success) return badRequest(reply, 'Неверные данные');
 
     const { login, password } = result.data;
-    const user = await prisma.user.findUnique({ where: { login }, include: { roles: true } });
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ login }, { email: login }] },
+      include: { roles: true },
+    });
     if (!user) return unauthorized(reply, 'Неверный логин или пароль');
 
     const valid = await bcrypt.compare(password, user.passwordHash);

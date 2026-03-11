@@ -10,7 +10,7 @@ export const RegisterSchema = z.object({
 });
 
 export const LoginSchema = z.object({
-  login: z.string(),
+  login: z.string(),  // может быть логином или email
   password: z.string(),
 });
 

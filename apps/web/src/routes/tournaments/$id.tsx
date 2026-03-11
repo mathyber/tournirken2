@@ -176,14 +176,17 @@ function TournamentPage() {
       {/* Podium for finished tournaments */}
       {tournament.status === 'FINISHED' && (() => {
         const top3 = [1, 2, 3]
-          .map((place) => ({ place, participant: participants.find((p: any) => p.finalResult === String(place)) }))
-          .filter((x) => x.participant);
+          .map((place) => ({
+            place,
+            participants: (participants as any[]).filter((p) => p.finalResult === String(place)),
+          }))
+          .filter((x) => x.participants.length > 0);
         if (top3.length === 0) return null;
         const podiumOrder = [
           top3.find((x) => x.place === 2),
           top3.find((x) => x.place === 1),
           top3.find((x) => x.place === 3),
-        ].filter(Boolean);
+        ].filter(Boolean) as typeof top3;
         const heights = { 1: 'h-24', 2: 'h-16', 3: 'h-12' };
         const colors = { 1: 'text-yellow-500', 2: 'text-slate-400', 3: 'text-amber-600' };
         const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
@@ -197,14 +200,18 @@ function TournamentPage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-end justify-center gap-3 pt-2">
-                {podiumOrder.map((item: any) => (
+                {podiumOrder.map((item) => (
                   <div key={item.place} className="flex flex-col items-center gap-1">
                     <span className="text-2xl">{(medals as any)[item.place]}</span>
-                    <Link to="/users/$login" params={{ login: item.participant.user?.login }}>
-                      <span className={`text-sm font-semibold hover:underline ${(colors as any)[item.place]}`}>
-                        @{item.participant.user?.login}
-                      </span>
-                    </Link>
+                    <div className="flex flex-col items-center gap-0.5">
+                      {item.participants.map((p: any) => (
+                        <Link key={p.id} to="/users/$login" params={{ login: p.user?.login }}>
+                          <span className={`text-sm font-semibold hover:underline ${(colors as any)[item.place]}`}>
+                            @{p.user?.login}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
                     <div className={`w-20 ${(heights as any)[item.place]} rounded-t-md flex items-center justify-center ${
                       item.place === 1 ? 'bg-yellow-400/80' : item.place === 2 ? 'bg-slate-300/80' : 'bg-amber-600/60'
                     }`}>
