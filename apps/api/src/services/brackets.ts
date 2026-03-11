@@ -63,7 +63,7 @@ export async function generateSingleElimination(
       nextRoundMatches.push(m);
     }
 
-    // Link previous round matches to next round
+    // Link previous round matches to next round (and update in-memory objects)
     for (let i = 0; i < prevRoundMatches.length; i++) {
       const nextMatchIndex = Math.floor(i / 2);
       const slot = (i % 2) + 1;
@@ -71,6 +71,11 @@ export async function generateSingleElimination(
         where: { id: prevRoundMatches[i].id },
         data: { nextMatchId: nextRoundMatches[nextMatchIndex].id, nextMatchSlot: slot },
       });
+      prevRoundMatches[i] = {
+        ...prevRoundMatches[i],
+        nextMatchId: nextRoundMatches[nextMatchIndex].id,
+        nextMatchSlot: slot,
+      };
     }
 
     // Auto-advance byes
@@ -135,10 +140,19 @@ export async function generateDoubleElimination(
       nextRound.push(m);
     }
     for (let i = 0; i < prevWB.length; i++) {
+      const nextMatchId = nextRound[Math.floor(i / 2)].id;
+      const nextMatchSlot = (i % 2) + 1;
       await prisma.match.update({
         where: { id: prevWB[i].id },
-        data: { nextMatchId: nextRound[Math.floor(i / 2)].id, nextMatchSlot: (i % 2) + 1 },
+        data: { nextMatchId, nextMatchSlot },
       });
+      prevWB[i] = { ...prevWB[i], nextMatchId, nextMatchSlot };
+    }
+    // Auto-advance byes
+    for (const m of prevWB) {
+      if (m.isBye && m.winnerId) {
+        await advanceWinner(m);
+      }
     }
     allWBMatches.push(nextRound);
     prevWB = nextRound;
@@ -398,12 +412,16 @@ export async function advanceWinner(match: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildSingleEliminationBracket(participants: number[], totalSlots: number): (number | null)[] {
-  // Standard seeding: 1 vs last, 2 vs second-to-last etc.
-  const result: (number | null)[] = new Array(totalSlots).fill(null);
-  for (let i = 0; i < participants.length; i++) {
-    result[i] = participants[i];
+  // Build seeded slot order using recursive folding:
+  // [1,2] → [1,4,3,2] → [1,8,4,5,3,6,2,7] → ...
+  // This ensures top seeds are spread across the bracket and BYEs
+  // always land in the p2 slot (never null vs null).
+  let seeds = [1, 2];
+  while (seeds.length < totalSlots) {
+    const n = seeds.length * 2;
+    seeds = seeds.flatMap((s) => [s, n + 1 - s]);
   }
-  return result;
+  return seeds.map((s) => (s <= participants.length ? participants[s - 1] : null));
 }
 
 function buildRoundRobinSchedule(participants: number[]): [number, number][][] {
