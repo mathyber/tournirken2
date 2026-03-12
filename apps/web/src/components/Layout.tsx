@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Trophy, LogOut, User, Sun, Moon } from 'lucide-react';
+import { Trophy, LogOut, User, Sun, Moon, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import ReactCountryFlag from 'react-country-flag';
 import { useAuthStore } from '../stores/auth';
 import { authApi } from '../api/auth';
 import { useTranslation } from 'react-i18next';
@@ -20,19 +22,29 @@ export function Layout({ children }: LayoutProps) {
   const [darkMode, setDarkMode] = React.useState(
     () => document.documentElement.classList.contains('dark')
   );
-  const [lang, setLang] = React.useState(i18n.language.startsWith('en') ? 'en' : 'ru');
+  const [lang, setLang] = React.useState(() => {
+    const saved = localStorage.getItem('language') || 'ru';
+    return ['ru', 'en', 'uk', 'be', 'es'].includes(saved) ? saved : 'ru';
+  });
 
   const toggleDark = () => {
     document.documentElement.classList.toggle('dark');
     setDarkMode((v) => !v);
   };
 
-  const toggleLang = () => {
-    const next = lang === 'ru' ? 'en' : 'ru';
+  const changeLang = (next: string) => {
     i18n.changeLanguage(next);
     localStorage.setItem('language', next);
     setLang(next);
   };
+
+  const LANGS = [
+    { value: 'ru', countryCode: 'RU', label: 'RU' },
+    { value: 'en', countryCode: 'GB', label: 'EN' },
+    { value: 'uk', countryCode: 'UA', label: 'UA' },
+    { value: 'be', countryCode: 'BY', label: 'BY' },
+    { value: 'es', countryCode: 'ES', label: 'ES' },
+  ];
 
   const handleLogout = async () => {
     try { await authApi.logout(); } catch {}
@@ -65,12 +77,32 @@ export function Layout({ children }: LayoutProps) {
                 {t('nav.admin')}
               </Link>
             )}
+            <Link to="/guide" className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-md hover:bg-accent flex items-center gap-1">
+              <BookOpen className="h-3.5 w-3.5" />
+              {t('nav.guide')}
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={toggleLang} className="text-xs font-semibold w-10">
-              {lang === 'ru' ? 'EN' : 'RU'}
-            </Button>
+            <Select value={lang} onValueChange={changeLang}>
+              <SelectTrigger className="h-8 w-20 text-xs border-0 bg-transparent shadow-none focus:ring-0 gap-1 px-2">
+                <SelectValue asChild>
+                  <span className="flex items-center gap-2">
+                    {(() => { const l = LANGS.find((l) => l.value === lang); return l ? <><ReactCountryFlag countryCode={l.countryCode} svg style={{ width: '1.1em', height: '1.1em' }} />{l.label}</> : null; })()}
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end">
+                {LANGS.map((l) => (
+                  <SelectItem key={l.value} value={l.value} className="text-xs">
+                    <span className="flex items-center gap-2.5">
+                      <ReactCountryFlag countryCode={l.countryCode} svg style={{ width: '1.1em', height: '1.1em' }} />
+                      {l.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button variant="ghost" size="icon" onClick={toggleDark}>
               {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>

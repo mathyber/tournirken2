@@ -54,6 +54,7 @@ function MatchNode({ data }: NodeProps) {
       width: 240, height: 80, fontSize: 12, borderRadius: 8, overflow: 'hidden',
       border: match.isFinished ? '1px solid #86efac' : '1px solid #e2e8f0',
       background: match.isFinished ? '#f0fff4' : '#fff',
+      color: '#0f172a',
     }}>
       {/* Generic target (match→match advances) */}
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
@@ -106,6 +107,7 @@ function GroupNode({ data }: NodeProps) {
       width: GN.WIDTH, fontSize: 11, borderRadius: 8,
       overflow: 'visible',  // allow handles to protrude
       border: `2px solid ${color}`, background: '#fff', position: 'relative',
+      color: '#0f172a',
     }}>
       {/* Header */}
       <div style={{

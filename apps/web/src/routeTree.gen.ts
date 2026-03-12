@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as GuideRouteImport } from './routes/guide'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersLoginRouteImport } from './routes/users/$login'
@@ -23,6 +24,11 @@ import { Route as TournamentsIdGroupsGroupIdRouteImport } from './routes/tournam
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -75,6 +81,7 @@ const TournamentsIdGroupsGroupIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/guide': typeof GuideRoute
   '/profile': typeof ProfileRoute
   '/matches/$id': typeof MatchesIdRoute
   '/tournaments/$id': typeof TournamentsIdRouteWithChildren
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/guide': typeof GuideRoute
   '/profile': typeof ProfileRoute
   '/matches/$id': typeof MatchesIdRoute
   '/tournaments/$id': typeof TournamentsIdRouteWithChildren
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/guide': typeof GuideRoute
   '/profile': typeof ProfileRoute
   '/matches/$id': typeof MatchesIdRoute
   '/tournaments/$id': typeof TournamentsIdRouteWithChildren
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/guide'
     | '/profile'
     | '/matches/$id'
     | '/tournaments/$id'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/guide'
     | '/profile'
     | '/matches/$id'
     | '/tournaments/$id'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/guide'
     | '/profile'
     | '/matches/$id'
     | '/tournaments/$id'
@@ -151,6 +163,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  GuideRoute: typeof GuideRoute
   ProfileRoute: typeof ProfileRoute
   MatchesIdRoute: typeof MatchesIdRoute
   TournamentsIdRoute: typeof TournamentsIdRouteWithChildren
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -252,6 +272,7 @@ const TournamentsIdRouteWithChildren = TournamentsIdRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  GuideRoute: GuideRoute,
   ProfileRoute: ProfileRoute,
   MatchesIdRoute: MatchesIdRoute,
   TournamentsIdRoute: TournamentsIdRouteWithChildren,
