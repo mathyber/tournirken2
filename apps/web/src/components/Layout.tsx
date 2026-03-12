@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Trophy, LogOut, User, Sun, Moon, BookOpen } from 'lucide-react';
+import { LogOut, User, Sun, Moon, BookOpen } from 'lucide-react';
+import { Logo } from './Logo';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import ReactCountryFlag from 'react-country-flag';
@@ -62,9 +63,8 @@ export function Layout({ children }: LayoutProps) {
       {/* Header */}
       <header className="border-b bg-card sticky top-0 z-40">
         <div className="container mx-auto flex h-16 items-center gap-4">
-          <Link to="/" className="flex items-center gap-2 font-bold text-xl text-primary">
-            <Trophy className="h-6 w-6" />
-            <span>{t('brand')}</span>
+          <Link to="/" className="flex items-center text-primary">
+            <Logo className="h-8 w-auto" />
           </Link>
 
           <nav className="flex-1 flex items-center gap-2 ml-4">

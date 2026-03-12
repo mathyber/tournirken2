@@ -10,7 +10,12 @@
       "Bash(grep '\"\"prev\"\"\\\\|\"\"next\"\"\\\\|\"\"pageOf\"\"\\\\|\"\"tabUsers\"\"\\\\|\"\"tabTournaments\"\"\\\\|\"\"search\"\"' apps/web/src/i18n/en.json)",
       "Bash(curl -s -X POST http://localhost:3001/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"login\"\"\"\":\"\"\"\"admin\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"admin123\"\"\"\"}')",
       "Bash(curl -s \"http://localhost:3001/api/admin/users?search=&page=1&limit=20\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM1MDU5OSwiZXhwIjoxNzczMzUxNDk5fQ.PpShI8UttX-jCq_EHuLjZ8mzwyii9uGWsvJSc3f_vlY\")",
-      "Bash(node debug-admin.mjs)"
+      "Bash(node debug-admin.mjs)",
+      "Bash(node test-logo.mjs)",
+      "Bash(node test-logo2.mjs)",
+      "Bash(node test-logo3.mjs)",
+      "Bash(node test-logo4.mjs)",
+      "Bash(node test-logo5.mjs)"
     ]
   }
 }
