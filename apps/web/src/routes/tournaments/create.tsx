@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { gamesApi, tournamentsApi } from '../../api/tournaments';
@@ -22,6 +22,10 @@ function CreateTournamentPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (!user) navigate({ to: '/' });
+  }, [user, navigate]);
 
   const [form, setForm] = useState({
     tournamentName: '',

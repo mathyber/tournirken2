@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
-import { badRequest, forbidden, notFound, unauthorized } from '../lib/errors';
+import { badRequest, forbidden, notFound, unauthorized, parseId } from '../lib/errors';
 import { SetMatchResultSchema } from '@tournirken/shared';
 import { advanceWinner, advanceLoser, generateSwissRound, generateSingleElimination, getSwissStandings } from '../services/brackets';
 
@@ -20,8 +20,8 @@ const MATCH_INCLUDE = {
 export default async function matchRoutes(fastify: FastifyInstance) {
   // GET /api/matches/:id
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const id = parseInt(request.params.id);
-    if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+    const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
     const match = await prisma.match.findUnique({ where: { id }, include: MATCH_INCLUDE });
     if (!match) return notFound(reply, 'Матч не найден');
@@ -34,8 +34,8 @@ export default async function matchRoutes(fastify: FastifyInstance) {
     '/:id/result',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const match = await prisma.match.findUnique({
         where: { id },

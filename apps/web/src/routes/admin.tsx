@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../api/users';
 import { tournamentsApi } from '../api/tournaments';
@@ -25,6 +25,11 @@ function AdminPage() {
   const { user, isModerator } = useAuthStore();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) navigate({ to: '/' });
+  }, [user, navigate]);
 
   if (!user || !isModerator()) {
     return <div className="text-center py-16 text-muted-foreground">{t('admin.noAccess')}</div>;

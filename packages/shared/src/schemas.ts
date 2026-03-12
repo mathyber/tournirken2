@@ -35,17 +35,26 @@ export const CreateTournamentSchema = z.object({
   tournamentName: z.string().min(1).max(100),
   gameName: z.string().min(1).max(100),
   season: z.number().int().positive().optional(),
-  info: z.string().optional(),
-  logo: z.string().url().optional().or(z.literal('')),
+  info: z.string().max(10000).optional(),
+  logo: z.string().url('Логотип должен быть корректным http/https URL').refine(
+    (v) => v.startsWith('http://') || v.startsWith('https://'),
+    { message: 'Логотип должен быть корректным http/https URL' }
+  ).optional().or(z.literal('')),
   maxParticipants: z.number().int().min(2).max(512),
   onlyOrganizerSetsResults: z.boolean().default(false),
   format: z.nativeEnum(TournamentFormat),
   registrationStart: z.coerce.date().optional().nullable(),
   registrationEnd: z.coerce.date().optional().nullable(),
   swissRounds: z.number().int().min(1).max(20).optional(),
-});
+}).refine(
+  (data) => data.format !== 'SWISS' || (data.swissRounds !== undefined && data.swissRounds !== null),
+  { message: 'Для формата Swiss укажите количество раундов', path: ['swissRounds'] }
+);
 
-export const UpdateTournamentSchema = CreateTournamentSchema.partial();
+export const UpdateTournamentSchema = CreateTournamentSchema.innerType().partial().refine(
+  (data) => !data.format || data.format !== 'SWISS' || data.swissRounds !== undefined,
+  { message: 'Для формата Swiss укажите количество раундов', path: ['swissRounds'] }
+);
 
 export const TournamentFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),

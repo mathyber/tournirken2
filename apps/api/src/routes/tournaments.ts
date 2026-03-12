@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { badRequest, forbidden, notFound, parseId } from '../lib/errors';
 import {
   CreateTournamentSchema,
   UpdateTournamentSchema,
@@ -80,10 +80,13 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     if (status) where.status = status;
 
     // Case-insensitive search via LOWER() for SQLite
-    if (name || game) {
+    const nameTrimmed = name?.trim();
+    const gameTrimmed = game?.trim();
+    const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
+    if (nameTrimmed || gameTrimmed) {
       const conditions: Prisma.Sql[] = [];
-      if (name) conditions.push(Prisma.sql`LOWER(tn.name) LIKE LOWER(${'%' + name + '%'})`);
-      if (game) conditions.push(Prisma.sql`LOWER(g.name) LIKE LOWER(${'%' + game + '%'})`);
+      if (nameTrimmed) conditions.push(Prisma.sql`COALESCE(tn.nameLower, LOWER(tn.name)) LIKE ${'%' + escapeLike(nameTrimmed.toLowerCase()) + '%'} ESCAPE '\\'`);
+      if (gameTrimmed) conditions.push(Prisma.sql`COALESCE(g.nameLower, LOWER(g.name)) LIKE ${'%' + escapeLike(gameTrimmed.toLowerCase()) + '%'} ESCAPE '\\'`);
       if (status) conditions.push(Prisma.sql`t.status = ${status}`);
       const whereClause = Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`;
       const idsResult = await prisma.$queryRaw<{ id: number }[]>`
@@ -117,8 +120,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
   // GET /api/tournaments/:id
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const id = parseInt(request.params.id);
-    if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+    const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
     let tournament = await prisma.tournament.findUnique({
       where: { id },
@@ -140,7 +143,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     // Get or create game
     let game = await prisma.game.findUnique({ where: { name: gameName } });
     if (!game) {
-      game = await prisma.game.create({ data: { name: gameName } });
+      game = await prisma.game.create({ data: { name: gameName, nameLower: gameName.toLowerCase() } });
     }
 
     // Get or create tournament name
@@ -149,7 +152,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     });
     if (!tnameRecord) {
       tnameRecord = await prisma.tournamentName.create({
-        data: { name: tournamentName, gameId: game.id, creatorId: request.userId! },
+        data: { name: tournamentName, nameLower: tournamentName.toLowerCase(), gameId: game.id, creatorId: request.userId! },
       });
     }
 
@@ -176,8 +179,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     '/:id',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({ where: { id } });
       if (!tournament) return notFound(reply, 'Турнир не найден');
@@ -206,7 +209,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
         let game = tournament ? await prisma.game.findUnique({ where: { id: (await prisma.tournamentName.findUnique({ where: { id: tournament.nameId } }))!.gameId } }) : null;
         if (gameName) {
           game = await prisma.game.findUnique({ where: { name: gameName } });
-          if (!game) game = await prisma.game.create({ data: { name: gameName } });
+          if (!game) game = await prisma.game.create({ data: { name: gameName, nameLower: gameName.toLowerCase() } });
         }
         if (tournamentName && game) {
           let tnameRecord = await prisma.tournamentName.findUnique({
@@ -214,7 +217,7 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
           });
           if (!tnameRecord) {
             tnameRecord = await prisma.tournamentName.create({
-              data: { name: tournamentName, gameId: game.id, creatorId: request.userId! },
+              data: { name: tournamentName, nameLower: tournamentName.toLowerCase(), gameId: game.id, creatorId: request.userId! },
             });
           }
           updateData.nameId = tnameRecord.id;
@@ -241,8 +244,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     '/:id',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({ where: { id } });
       if (!tournament) return notFound(reply, 'Турнир не найден');
@@ -265,8 +268,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     '/:id/join',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       let tournament: any = await prisma.tournament.findUnique({
         where: { id },
@@ -316,8 +319,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     '/:id/leave',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({ where: { id } });
       if (!tournament) return notFound(reply, 'Турнир не найден');
@@ -344,8 +347,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
       const isAdmin = request.userRoles?.includes('ADMIN') || request.userRoles?.includes('MODERATOR');
       if (!isAdmin) return forbidden(reply);
 
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({
         where: { id },
@@ -379,8 +382,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
   // GET /api/tournaments/:id/participants
   fastify.get<{ Params: { id: string } }>('/:id/participants', async (request, reply) => {
-    const id = parseInt(request.params.id);
-    if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+    const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
     const participants = await prisma.tournamentParticipant.findMany({
       where: { tournamentId: id },
@@ -393,8 +396,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
   // GET /api/tournaments/:id/matches
   fastify.get<{ Params: { id: string } }>('/:id/matches', async (request, reply) => {
-    const id = parseInt(request.params.id);
-    if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+    const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
     const matches = await prisma.match.findMany({
       where: { tournamentId: id },
@@ -421,8 +424,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
     '/:id/open-registration',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({ where: { id } });
       if (!tournament) return notFound(reply, 'Турнир не найден');
@@ -447,8 +450,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
   // GET /api/tournaments/:id/groups
   fastify.get<{ Params: { id: string } }>('/:id/groups', async (request, reply) => {
-    const id = parseInt(request.params.id);
-    if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+    const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
     const groups = await prisma.tournamentGroup.findMany({
       where: { tournamentId: id },
@@ -478,8 +481,8 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
   // GET /api/tournaments/:id/grid
   fastify.get<{ Params: { id: string } }>('/:id/grid', async (request, reply) => {
-    const id = parseInt(request.params.id);
-    if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+    const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
     const tournament = await prisma.tournament.findUnique({
       where: { id },

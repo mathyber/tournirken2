@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { badRequest, forbidden, notFound, parseId } from '../lib/errors';
 import { SaveDraftGridSchema, FinalizeGridSchema } from '@tournirken/shared';
 import {
   generateSingleElimination,
@@ -16,8 +16,8 @@ export default async function gridRoutes(fastify: FastifyInstance) {
     '/:id/grid/draft',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({ where: { id } });
       if (!tournament) return notFound(reply, 'Турнир не найден');
@@ -39,8 +39,8 @@ export default async function gridRoutes(fastify: FastifyInstance) {
     '/:id/grid/finalize',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({
         where: { id },

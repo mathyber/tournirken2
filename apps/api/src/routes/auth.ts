@@ -62,7 +62,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   // POST /api/auth/login
-  fastify.post('/login', async (request, reply) => {
+  fastify.post('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+        errorResponseBuilder: (_req: any, context: any) => {
+          const err: any = new Error('Слишком много попыток входа. Попробуйте через минуту.');
+          err.statusCode = context.statusCode;
+          return err;
+        },
+      },
+    },
+  }, async (request, reply) => {
     const result = LoginSchema.safeParse(request.body);
     if (!result.success) return badRequest(reply, 'Неверные данные');
 

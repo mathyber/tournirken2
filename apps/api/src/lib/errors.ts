@@ -1,5 +1,12 @@
 import { FastifyReply } from 'fastify';
 
+/** Parses a route param as a positive integer. Returns null for floats, hex, strings, negatives. */
+export function parseId(raw: string): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const n = parseInt(raw, 10);
+  return n > 0 ? n : null;
+}
+
 export function sendError(reply: FastifyReply, statusCode: number, message: string) {
   return reply.status(statusCode).send({ error: message });
 }

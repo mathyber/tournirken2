@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
-import { badRequest, forbidden, notFound } from '../lib/errors';
+import { badRequest, forbidden, notFound, parseId } from '../lib/errors';
 import { UpdateUserRolesSchema } from '@tournirken/shared';
 
 function requireRole(roles: string[] | undefined, ...required: string[]) {
@@ -35,8 +35,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       if (!requireRole(request.userRoles, 'ADMIN')) return forbidden(reply, 'Только администратор может менять роли');
 
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const result = UpdateUserRolesSchema.safeParse(request.body);
       if (!result.success) return badRequest(reply, 'Неверные данные');
@@ -67,8 +67,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       if (!requireRole(request.userRoles, 'ADMIN', 'MODERATOR')) return forbidden(reply);
 
-      const id = parseInt(request.params.id);
-      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+      const id = parseId(request.params.id);
+if (!id) return badRequest(reply, 'Неверный ID');
 
       const tournament = await prisma.tournament.findUnique({ where: { id } });
       if (!tournament) return notFound(reply, 'Турнир не найден');

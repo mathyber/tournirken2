@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { usersApi } from '../api/users';
 import { useAuthStore } from '../stores/auth';
@@ -19,6 +19,11 @@ export const Route = createFileRoute('/profile')({
 function ProfilePage() {
   const { user, setUser } = useAuthStore();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) navigate({ to: '/' });
+  }, [user, navigate]);
 
   const [emailForm, setEmailForm] = useState({ email: '' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });

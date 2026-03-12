@@ -32,16 +32,18 @@ model UserRole {
 }
 
 model Game {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-  info String?
+  id        Int     @id @default(autoincrement())
+  name      String  @unique
+  nameLower String?
+  info      String?
 
   tournamentNames TournamentName[]
 }
 
 model TournamentName {
-  id        Int    @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   name      String
+  nameLower String?
   gameId    Int
   creatorId Int
 
