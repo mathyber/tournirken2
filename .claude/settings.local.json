@@ -71,7 +71,17 @@
       "Bash(node -e \"require\\(''@playwright/test''\\)\")",
       "Bash(node -e \"import\\(''playwright''\\).then\\(p => console.log\\(''OK'', Object.keys\\(p\\)\\)\\)\")",
       "Bash(curl -s http://localhost:3001/api/tournaments?limit=5)",
-      "Bash(curl -sv http://localhost:3001/api/tournaments)"
+      "Bash(curl -sv http://localhost:3001/api/tournaments)",
+      "Bash(node test-dark-theme.mjs)",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"login\"\":\"\"admin\"\",\"\"password\"\":\"\"admin123\"\"}')",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM1MDMwNiwiZXhwIjoxNzczMzUxMjA2fQ.oiXfNO6mH094vnQlPyKNulKMlZtPhILNqTpuWbDVOtQ\" __NEW_LINE_0f4861e21a60685a__ echo \"=== GET /admin/users \\(no search\\) ===\" curl -s \"http://localhost:3001/api/admin/users?page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM1MDMwNiwiZXhwIjoxNzczMzUxMjA2fQ.oiXfNO6mH094vnQlPyKNulKMlZtPhILNqTpuWbDVOtQ\")",
+      "Bash(__NEW_LINE_bde8e0b6bb96993e__ echo:*)",
+      "Bash(curl -s \"http://localhost:3001/api/admin/users?page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(curl -s \"http://localhost:3001/api/admin/tournaments?page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(__NEW_LINE_92415b8a0717fc00__ echo:*)",
+      "Bash(curl -s \"http://localhost:3001/api/admin/users?search=admin&page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(curl -s \"http://localhost:3001/api/admin/tournaments?search=vis5&page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")"
     ]
   }
 }

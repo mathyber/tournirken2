@@ -214,6 +214,10 @@
   "admin.colStatus": "Статус",
   "admin.cancelBtn": "Адмяніць",
   "admin.cancelConfirm": "Адмяніць турнір \"{{name}}\"?",
+  "admin.search": "Пошук...",
+  "admin.pageOf": "Стар. {{page}} з {{total}}",
+  "admin.prev": "Назад",
+  "admin.next": "Далей",
 
   "group.rank": "#",
   "group.participant": "Удзельнік",

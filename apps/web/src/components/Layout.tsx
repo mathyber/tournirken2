@@ -19,17 +19,21 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const [darkMode, setDarkMode] = React.useState(
-    () => document.documentElement.classList.contains('dark')
-  );
+  const [darkMode, setDarkMode] = React.useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved === 'dark';
+    return document.documentElement.classList.contains('dark');
+  });
   const [lang, setLang] = React.useState(() => {
     const saved = localStorage.getItem('language') || 'ru';
     return ['ru', 'en', 'uk', 'be', 'es'].includes(saved) ? saved : 'ru';
   });
 
   const toggleDark = () => {
+    const newValue = !darkMode;
     document.documentElement.classList.toggle('dark');
-    setDarkMode((v) => !v);
+    localStorage.setItem('theme', newValue ? 'dark' : 'light');
+    setDarkMode(newValue);
   };
 
   const changeLang = (next: string) => {

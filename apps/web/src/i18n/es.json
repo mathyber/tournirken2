@@ -214,6 +214,10 @@
   "admin.colStatus": "Estado",
   "admin.cancelBtn": "Cancelar",
   "admin.cancelConfirm": "¿Cancelar el torneo \"{{name}}\"?",
+  "admin.search": "Buscar...",
+  "admin.pageOf": "Pág. {{page}} de {{total}}",
+  "admin.prev": "Anterior",
+  "admin.next": "Siguiente",
 
   "group.rank": "#",
   "group.participant": "Participante",

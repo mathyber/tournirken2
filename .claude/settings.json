@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"/c/Program Files/nodejs/pnpm\" --filter web exec tsc --noEmit)",
+      "Bash(npx tsc:*)",
+      "Bash(node test-admin-pagination.mjs)",
+      "Bash(curl -s http://localhost:3001/api/admin/users)",
+      "Read(//c/my-projects/claude-code/**)",
+      "Bash(grep -A2 '\"\"admin.prev\"\"\\\\|\"\"admin.next\"\"\\\\|\"\"admin.pageOf\"\"\\\\|\"\"admin.tabUsers\"\"\\\\|\"\"admin.tabTournaments\"\"\\\\|\"\"admin.search\"\"' apps/web/src/i18n/en.json)",
+      "Bash(grep '\"\"prev\"\"\\\\|\"\"next\"\"\\\\|\"\"pageOf\"\"\\\\|\"\"tabUsers\"\"\\\\|\"\"tabTournaments\"\"\\\\|\"\"search\"\"' apps/web/src/i18n/en.json)",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"login\"\"\"\":\"\"\"\"admin\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"admin123\"\"\"\"}')",
+      "Bash(curl -s \"http://localhost:3001/api/admin/users?search=&page=1&limit=20\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM1MDU5OSwiZXhwIjoxNzczMzUxNDk5fQ.PpShI8UttX-jCq_EHuLjZ8mzwyii9uGWsvJSc3f_vlY\")",
+      "Bash(node debug-admin.mjs)"
+    ]
+  }
+}

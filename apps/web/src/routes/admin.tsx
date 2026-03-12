@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../api/users';
-import { tournamentsApi } from '../api/tournaments';
 import { useAuthStore } from '../stores/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { TournamentStatusBadge } from '../components/tournament/TournamentStatusBadge';
@@ -20,6 +20,44 @@ export const Route = createFileRoute('/admin')({
 });
 
 const ROLES = ['USER', 'MODERATOR', 'ADMIN'];
+const PAGE_LIMIT = 20;
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
+function Pagination({
+  page,
+  totalPages,
+  onPrev,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useTranslation();
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between pt-3 border-t mt-3">
+      <Button variant="outline" size="sm" onClick={onPrev} disabled={page <= 1}>
+        {t('admin.prev')}
+      </Button>
+      <span className="text-sm text-muted-foreground">
+        {t('admin.pageOf', { page, total: totalPages })}
+      </span>
+      <Button variant="outline" size="sm" onClick={onNext} disabled={page >= totalPages}>
+        {t('admin.next')}
+      </Button>
+    </div>
+  );
+}
 
 function AdminPage() {
   const { user, isModerator } = useAuthStore();
@@ -60,9 +98,22 @@ function AdminPage() {
 function UsersTable({ queryClient, isAdmin }: { queryClient: any; isAdmin: boolean }) {
   const { t } = useTranslation();
   const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
-  const { data: users = [], isLoading } = useQuery({
-    queryKey: ['admin-users'],
-    queryFn: adminApi.users,
+  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(1);
+  const search = useDebounce(searchInput, 300);
+
+  // Reset to page 1 when search changes
+  const prevSearch = useRef(search);
+  useEffect(() => {
+    if (search !== prevSearch.current) {
+      setPage(1);
+      prevSearch.current = search;
+    }
+  }, [search]);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-users', search, page],
+    queryFn: () => adminApi.users({ search, page, limit: PAGE_LIMIT }),
   });
 
   const updateRolesMutation = useMutation({
@@ -70,51 +121,75 @@ function UsersTable({ queryClient, isAdmin }: { queryClient: any; isAdmin: boole
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
   });
 
-  if (isLoading) return <div className="animate-pulse h-64 bg-muted rounded-lg" />;
+  const users: any[] = data?.items ?? [];
+  const total: number = data?.total ?? 0;
+  const totalPages: number = data?.totalPages ?? 1;
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{t('admin.usersCount', { count: users.length })}</CardTitle></CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-muted-foreground">
-                <th className="text-left pb-2 pr-4">{t('admin.colLogin')}</th>
-                <th className="text-left pb-2 pr-4">{t('admin.colEmail')}</th>
-                <th className="text-left pb-2 pr-4">{t('admin.colRoles')}</th>
-                <th className="text-left pb-2">{t('admin.colDate')}</th>
-                {isAdmin && <th className="text-left pb-2">{t('admin.colActions')}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u: any) => (
-                <tr key={u.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2 pr-4 font-medium">@{u.login}</td>
-                  <td className="py-2 pr-4 text-muted-foreground">{u.email}</td>
-                  <td className="py-2 pr-4">
-                    <div className="flex gap-1 flex-wrap">
-                      {u.roles.map((r: string) => (
-                        <Badge key={r} variant="secondary" className="text-xs">{r}</Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="py-2 pr-4 text-muted-foreground text-xs">
-                    {format(new Date(u.createdAt), 'd MMM yyyy', { locale: dateLocale })}
-                  </td>
-                  {isAdmin && (
-                    <td className="py-2">
-                      <RoleEditor
-                        currentRoles={u.roles}
-                        onUpdate={(roles) => updateRolesMutation.mutate({ id: u.id, roles })}
-                      />
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <CardTitle className="text-base">{t('admin.usersCount', { count: total })}</CardTitle>
+          <Input
+            className="w-60"
+            placeholder={t('admin.search')}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
         </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="animate-pulse h-48 bg-muted rounded-lg" />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left pb-2 pr-4">{t('admin.colLogin')}</th>
+                    <th className="text-left pb-2 pr-4">{t('admin.colEmail')}</th>
+                    <th className="text-left pb-2 pr-4">{t('admin.colRoles')}</th>
+                    <th className="text-left pb-2">{t('admin.colDate')}</th>
+                    {isAdmin && <th className="text-left pb-2">{t('admin.colActions')}</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((u: any) => (
+                    <tr key={u.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="py-2 pr-4 font-medium">@{u.login}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">{u.email}</td>
+                      <td className="py-2 pr-4">
+                        <div className="flex gap-1 flex-wrap">
+                          {u.roles.map((r: string) => (
+                            <Badge key={r} variant="secondary" className="text-xs">{r}</Badge>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-2 pr-4 text-muted-foreground text-xs">
+                        {format(new Date(u.createdAt), 'd MMM yyyy', { locale: dateLocale })}
+                      </td>
+                      {isAdmin && (
+                        <td className="py-2">
+                          <RoleEditor
+                            currentRoles={u.roles}
+                            onUpdate={(roles) => updateRolesMutation.mutate({ id: u.id, roles })}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPrev={() => setPage((p) => p - 1)}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -160,9 +235,21 @@ function RoleEditor({ currentRoles, onUpdate }: {
 
 function TournamentsTable({ queryClient }: { queryClient: any }) {
   const { t } = useTranslation();
+  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(1);
+  const search = useDebounce(searchInput, 300);
+
+  const prevSearch = useRef(search);
+  useEffect(() => {
+    if (search !== prevSearch.current) {
+      setPage(1);
+      prevSearch.current = search;
+    }
+  }, [search]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-tournaments'],
-    queryFn: () => tournamentsApi.list({ limit: 100 }),
+    queryKey: ['admin-tournaments', search, page],
+    queryFn: () => adminApi.tournaments({ search, page, limit: PAGE_LIMIT }),
   });
 
   const cancelMutation = useMutation({
@@ -170,52 +257,74 @@ function TournamentsTable({ queryClient }: { queryClient: any }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-tournaments'] }),
   });
 
-  if (isLoading) return <div className="animate-pulse h-64 bg-muted rounded-lg" />;
-
-  const tournaments = data?.data ?? [];
+  const tournaments: any[] = data?.items ?? [];
+  const total: number = data?.total ?? 0;
+  const totalPages: number = data?.totalPages ?? 1;
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{t('admin.tournamentsCount', { count: tournaments.length })}</CardTitle></CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-muted-foreground">
-                <th className="text-left pb-2 pr-4">{t('admin.colName')}</th>
-                <th className="text-left pb-2 pr-4">{t('admin.colGame')}</th>
-                <th className="text-left pb-2 pr-4">{t('admin.colOrganizer')}</th>
-                <th className="text-left pb-2 pr-4">{t('admin.colStatus')}</th>
-                <th className="text-left pb-2">{t('admin.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tournaments.map((tournament: any) => (
-                <tr key={tournament.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2 pr-4 font-medium">{tournament.name}</td>
-                  <td className="py-2 pr-4 text-muted-foreground">{tournament.game?.name}</td>
-                  <td className="py-2 pr-4 text-muted-foreground">@{tournament.organizer?.login}</td>
-                  <td className="py-2 pr-4"><TournamentStatusBadge status={tournament.status} /></td>
-                  <td className="py-2">
-                    {tournament.status !== 'CANCELLED' && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          if (confirm(t('admin.cancelConfirm', { name: tournament.name }))) cancelMutation.mutate(tournament.id);
-                        }}
-                        disabled={cancelMutation.isPending}
-                      >
-                        {t('admin.cancelBtn')}
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <CardTitle className="text-base">{t('admin.tournamentsCount', { count: total })}</CardTitle>
+          <Input
+            className="w-60"
+            placeholder={t('admin.search')}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+          />
         </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="animate-pulse h-48 bg-muted rounded-lg" />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-muted-foreground">
+                    <th className="text-left pb-2 pr-4">{t('admin.colName')}</th>
+                    <th className="text-left pb-2 pr-4">{t('admin.colGame')}</th>
+                    <th className="text-left pb-2 pr-4">{t('admin.colOrganizer')}</th>
+                    <th className="text-left pb-2 pr-4">{t('admin.colStatus')}</th>
+                    <th className="text-left pb-2">{t('admin.colActions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tournaments.map((tournament: any) => (
+                    <tr key={tournament.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="py-2 pr-4 font-medium">{tournament.name}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">{tournament.game?.name}</td>
+                      <td className="py-2 pr-4 text-muted-foreground">@{tournament.organizer?.login}</td>
+                      <td className="py-2 pr-4"><TournamentStatusBadge status={tournament.status} /></td>
+                      <td className="py-2">
+                        {tournament.status !== 'CANCELLED' && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              if (confirm(t('admin.cancelConfirm', { name: tournament.name }))) cancelMutation.mutate(tournament.id);
+                            }}
+                            disabled={cancelMutation.isPending}
+                          >
+                            {t('admin.cancelBtn')}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              onPrev={() => setPage((p) => p - 1)}
+              onNext={() => setPage((p) => p + 1)}
+            />
+          </>
+        )}
       </CardContent>
     </Card>
   );

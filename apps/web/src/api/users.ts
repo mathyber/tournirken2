@@ -9,7 +9,10 @@ export const usersApi = {
 };
 
 export const adminApi = {
-  users: () => api.get('/admin/users').then((r) => r.data),
+  users: (params: { search?: string; page?: number; limit?: number } = {}) =>
+    api.get('/admin/users', { params }).then((r) => r.data),
+  tournaments: (params: { search?: string; page?: number; limit?: number } = {}) =>
+    api.get('/admin/tournaments', { params }).then((r) => r.data),
   updateRoles: (id: number, roles: string[]) =>
     api.patch(`/admin/users/${id}/roles`, { roles }).then((r) => r.data),
   cancelTournament: (id: number) => api.delete(`/admin/tournaments/${id}`).then((r) => r.data),

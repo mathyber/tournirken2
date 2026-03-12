@@ -8,24 +8,50 @@ function requireRole(roles: string[] | undefined, ...required: string[]) {
 }
 
 export default async function adminRoutes(fastify: FastifyInstance) {
-  // GET /api/admin/users
+  // GET /api/admin/users?search=&page=1&limit=20
   fastify.get('/users', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     if (!requireRole(request.userRoles, 'ADMIN', 'MODERATOR')) return forbidden(reply);
 
-    const users = await prisma.user.findMany({
-      include: { roles: true },
-      orderBy: { createdAt: 'desc' },
-    });
+    const { search = '', page = '1', limit = '20' } = request.query as Record<string, string>;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
 
-    return reply.send(
-      users.map((u) => ({
+    const where: any = {};
+    if (search.trim()) {
+      const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
+      const pattern = '%' + escapeLike(search.trim().toLowerCase()) + '%';
+      const idsResult = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM User
+        WHERE LOWER(login) LIKE ${pattern} ESCAPE '\\'
+           OR LOWER(COALESCE(email, '')) LIKE ${pattern} ESCAPE '\\'
+      `;
+      where.id = { in: idsResult.map((r) => r.id) };
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        include: { roles: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return reply.send({
+      items: users.map((u) => ({
         id: u.id,
         login: u.login,
         email: u.email,
         createdAt: u.createdAt,
         roles: u.roles.map((r) => r.role),
-      }))
-    );
+      })),
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
   });
 
   // PATCH /api/admin/users/:id/roles
@@ -59,6 +85,59 @@ if (!id) return badRequest(reply, 'Неверный ID');
       });
     }
   );
+
+  // GET /api/admin/tournaments?search=&page=1&limit=20
+  fastify.get('/tournaments', { preHandler: [fastify.authenticate] }, async (request, reply) => {
+    if (!requireRole(request.userRoles, 'ADMIN', 'MODERATOR')) return forbidden(reply);
+
+    const { search = '', page = '1', limit = '20' } = request.query as Record<string, string>;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const where: any = {};
+    if (search.trim()) {
+      const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
+      const pattern = '%' + escapeLike(search.trim().toLowerCase()) + '%';
+      const idsResult = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT t.id FROM Tournament t
+        JOIN TournamentName tn ON t.nameId = tn.id
+        WHERE COALESCE(tn.nameLower, LOWER(tn.name)) LIKE ${pattern} ESCAPE '\\'
+      `;
+      where.id = { in: idsResult.map((r) => r.id) };
+    }
+
+    const INCLUDE = {
+      tournamentName: { include: { game: true } },
+      organizer: { select: { login: true } },
+    };
+
+    const [tournaments, total] = await Promise.all([
+      prisma.tournament.findMany({
+        where,
+        include: INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.tournament.count({ where }),
+    ]);
+
+    return reply.send({
+      items: tournaments.map((t) => ({
+        id: t.id,
+        name: t.tournamentName.name,
+        game: t.tournamentName.game,
+        season: t.season,
+        organizer: t.organizer,
+        status: t.status,
+        createdAt: t.createdAt,
+      })),
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
+  });
 
   // DELETE /api/admin/tournaments/:id
   fastify.delete<{ Params: { id: string } }>(
