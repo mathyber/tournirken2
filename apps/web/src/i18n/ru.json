@@ -150,6 +150,7 @@
   "organizer.participants": "Участники ({{count}})",
   "organizer.minParticipants": "Нужно минимум 2 участника для запуска",
   "organizer.bracketEditor": "Редактор сетки",
+  "organizer.bracketViewer": "Турнирная сетка",
   "organizer.saveDraft": "Сохранить черновик",
   "organizer.launchTitle": "Запустить турнир",
   "organizer.launchDesc": "После запуска регистрация закрывается, автоматически генерируются матчи в соответствии с форматом \"{{format}}\". Это действие необратимо.",

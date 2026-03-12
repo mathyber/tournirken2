@@ -150,6 +150,7 @@
   "organizer.participants": "Учасники ({{count}})",
   "organizer.minParticipants": "Потрібно мінімум 2 учасники для запуску",
   "organizer.bracketEditor": "Редактор сітки",
+  "organizer.bracketViewer": "Турнірна сітка",
   "organizer.saveDraft": "Зберегти чернетку",
   "organizer.launchTitle": "Запустити турнір",
   "organizer.launchDesc": "Після запуску реєстрація закривається, автоматично генеруються матчі відповідно до формату \"{{format}}\". Ця дія незворотна.",

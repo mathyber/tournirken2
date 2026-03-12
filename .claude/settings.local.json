@@ -51,7 +51,27 @@
       "Bash(curl -s \"http://localhost:3001/api/tournaments?name=%D0%A7%D0%95%D0%9C%D0%9F\")",
       "Bash(curl -s \"http://localhost:3001/api/tournaments?game=%D0%BA%D1%80%D0%B5%D1%81%D1%82\")",
       "Bash(node -e \"require\\(''fs''\\); console.log\\(require\\(''fs''\\).existsSync\\(''node_modules/playwright''\\) || require\\(''fs''\\).existsSync\\(''node_modules/@playwright/test''\\)\\)\")",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(curl -s http://localhost:5173 -o /dev/null -w \"%{http_code}\")",
+      "Bash(node qa-single-elim.mjs)",
+      "Bash(node qa-visual.mjs)",
+      "Bash(node qa-auth-visual.mjs)",
+      "Bash(curl -s \"http://localhost:3001/api/tournaments/85\")",
+      "Bash(node -e \"const d=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const j=JSON.parse\\(d\\); console.log\\(''''participantCount:'''',j.participantCount,''''maxParticipants:'''',j.maxParticipants,''''format:'''',j.format,''''status:'''',j.status\\)\")",
+      "Bash(node -e \"fetch\\(''http://localhost:3001/api/tournaments/85''\\).then\\(r=>r.json\\(\\)\\).then\\(j=>console.log\\(''participantCount:'',j.participantCount,''maxParticipants:'',j.maxParticipants,''status:'',j.status\\)\\)\")",
+      "Bash(npm list:*)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(xargs grep:*)",
+      "Bash(node --experimental-vm-modules test-bugs.mjs)",
+      "Bash(node test-bugs.mjs)",
+      "Bash(node test-bugs-qa.mjs)",
+      "Bash(mkdir -p /c/tmp/qa-verify)",
+      "Read(//c/tmp/**)",
+      "Bash(node -e \"require\\(''playwright''\\)\")",
+      "Bash(node -e \"require\\(''@playwright/test''\\)\")",
+      "Bash(node -e \"import\\(''playwright''\\).then\\(p => console.log\\(''OK'', Object.keys\\(p\\)\\)\\)\")",
+      "Bash(curl -s http://localhost:3001/api/tournaments?limit=5)",
+      "Bash(curl -sv http://localhost:3001/api/tournaments)"
     ]
   }
 }

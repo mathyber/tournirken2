@@ -150,6 +150,7 @@
   "organizer.participants": "Participantes ({{count}})",
   "organizer.minParticipants": "Se necesitan al menos 2 participantes para comenzar",
   "organizer.bracketEditor": "Editor del bracket",
+  "organizer.bracketViewer": "Bracket del torneo",
   "organizer.saveDraft": "Guardar borrador",
   "organizer.launchTitle": "Iniciar torneo",
   "organizer.launchDesc": "Al iniciar, el registro se cierra y las partidas se generan automáticamente para el formato \"{{format}}\". Esta acción es irreversible.",

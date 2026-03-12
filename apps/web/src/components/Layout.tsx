@@ -87,8 +87,8 @@ export function Layout({ children }: LayoutProps) {
             <Select value={lang} onValueChange={changeLang}>
               <SelectTrigger className="h-8 w-20 text-xs border-0 bg-transparent shadow-none focus:ring-0 gap-1 px-2">
                 <SelectValue asChild>
-                  <span className="flex items-center gap-2">
-                    {(() => { const l = LANGS.find((l) => l.value === lang); return l ? <><ReactCountryFlag countryCode={l.countryCode} svg style={{ width: '1.1em', height: '1.1em' }} />{l.label}</> : null; })()}
+                  <span className="flex items-center">
+                    {(() => { const l = LANGS.find((l) => l.value === lang); return l ? <><ReactCountryFlag countryCode={l.countryCode} svg style={{ width: '1.1em', height: '1.1em' }} /><span style={{ marginLeft: 6 }}>{l.label}</span></> : null; })()}
                   </span>
                 </SelectValue>
               </SelectTrigger>

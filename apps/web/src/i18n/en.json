@@ -150,6 +150,7 @@
   "organizer.participants": "Participants ({{count}})",
   "organizer.minParticipants": "At least 2 participants required to start",
   "organizer.bracketEditor": "Bracket editor",
+  "organizer.bracketViewer": "Tournament bracket",
   "organizer.saveDraft": "Save draft",
   "organizer.launchTitle": "Start tournament",
   "organizer.launchDesc": "Registration will close and matches will be generated automatically for the \"{{format}}\" format. This action is irreversible.",

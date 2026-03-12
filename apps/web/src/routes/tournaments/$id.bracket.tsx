@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { useEffect, useCallback } from 'react';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import ReactFlow, {
   Background,
@@ -19,6 +19,7 @@ import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useAuthStore } from '../../stores/auth';
 
 export const Route = createFileRoute('/tournaments/$id/bracket')({
   component: BracketPage,
@@ -55,6 +56,7 @@ function MatchNode({ data }: NodeProps) {
       border: match.isFinished ? '1px solid #86efac' : '1px solid #e2e8f0',
       background: match.isFinished ? '#f0fff4' : '#fff',
       color: '#0f172a',
+      cursor: 'pointer',
     }}>
       {/* Generic target (match→match advances) */}
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8' }} />
@@ -163,13 +165,27 @@ function GroupNode({ data }: NodeProps) {
   );
 }
 
-const nodeTypes = { match: MatchNode, group: GroupNode };
+function LabelNode({ data }: NodeProps) {
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 700, color: '#64748b',
+      textTransform: 'uppercase', letterSpacing: 1,
+      pointerEvents: 'none', userSelect: 'none',
+      whiteSpace: 'nowrap',
+    }}>
+      {data.label}
+    </div>
+  );
+}
+
+const nodeTypes = { match: MatchNode, group: GroupNode, label: LabelNode };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function BracketPage() {
   const { id } = Route.useParams();
   const { t } = useTranslation();
+  const { user, isAdmin, isModerator } = useAuthStore();
   const tournamentId = parseInt(id);
 
   const { data: gridData, isLoading } = useQuery({
@@ -188,6 +204,7 @@ function BracketPage() {
     enabled: tournament?.format === 'MIXED' || tournament?.format === 'ROUND_ROBIN',
   });
 
+  const isOrganizer = !!(user && (tournament?.organizerId === user.id || isAdmin() || isModerator()));
   const format = tournament?.format;
   const allMatches: any[] = gridData?.matches ?? [];
   const playoffMatches = allMatches.filter((m: any) => !m.groupId);
@@ -197,7 +214,7 @@ function BracketPage() {
   // ROUND_ROBIN: no bracket, just group cards
   if (format === 'ROUND_ROBIN') {
     return (
-      <BracketLayout id={id} name={tournament?.name ?? ''} t={t}>
+      <BracketLayout id={id} name={tournament?.name ?? ''} isOrganizer={isOrganizer} t={t}>
         <div className={`grid gap-4 ${(groups as any[]).length > 1 ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
           {(groups as any[]).map((g: any) => (
             <GroupCard key={g.id} group={g} tournamentId={tournamentId} t={t} />
@@ -208,7 +225,7 @@ function BracketPage() {
   }
 
   return (
-    <BracketLayout id={id} name={tournament?.name ?? ''} t={t}>
+    <BracketLayout id={id} name={tournament?.name ?? ''} isOrganizer={isOrganizer} t={t}>
       <div className="border rounded-lg overflow-hidden bg-muted/20" style={{ height: '75vh' }}>
         <FlowCanvas
           matches={playoffMatches}
@@ -219,7 +236,7 @@ function BracketPage() {
   );
 }
 
-function BracketLayout({ id, name, t, children }: { id: string; name: string; t: any; children: any }) {
+function BracketLayout({ id, name, isOrganizer, t, children }: { id: string; name: string; isOrganizer: boolean; t: any; children: any }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -229,7 +246,9 @@ function BracketLayout({ id, name, t, children }: { id: string; name: string; t:
             {t('match.backToTournament')}
           </Button>
         </Link>
-        <h1 className="text-xl font-bold">{t('organizer.bracketEditor')}: {name}</h1>
+        <h1 className="text-xl font-bold">
+          {isOrganizer ? t('organizer.bracketEditor') : t('organizer.bracketViewer')}: {name}
+        </h1>
       </div>
       {children}
     </div>
@@ -239,6 +258,7 @@ function BracketLayout({ id, name, t, children }: { id: string; name: string; t:
 // ─── ReactFlow canvas ─────────────────────────────────────────────────────────
 
 function FlowCanvas({ matches, groups }: { matches: any[]; groups: any[] }) {
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
@@ -248,6 +268,12 @@ function FlowCanvas({ matches, groups }: { matches: any[]; groups: any[] }) {
     setEdges(e);
   }, [matches, groups]);
 
+  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type === 'match') {
+      navigate({ to: '/matches/$id', params: { id: node.id } });
+    }
+  }, [navigate]);
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -255,6 +281,7 @@ function FlowCanvas({ matches, groups }: { matches: any[]; groups: any[] }) {
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
+      onNodeClick={handleNodeClick}
       fitView
       fitViewOptions={{ padding: 0.15 }}
       nodesDraggable={false}
@@ -404,6 +431,19 @@ function buildGraph(playoffMatches: any[], groups: any[]): { nodes: Node[]; edge
           style: { stroke: '#94a3b8', strokeWidth: 2 },
         });
       }
+    }
+    // Round label above the column
+    const stageName = byRound[round][0]?.stage?.name;
+    if (stageName) {
+      const topY = Math.min(...byRound[round].map((m) => yPos.get(m.id) ?? 0));
+      nodes.push({
+        id: `label-r${round}`,
+        type: 'label',
+        position: { x, y: topY - 28 },
+        data: { label: stageName },
+        selectable: false,
+        draggable: false,
+      });
     }
   });
 
@@ -568,6 +608,22 @@ function buildDoubleEliminationGraph(matches: any[]): { nodes: Node[]; edges: Ed
     }
   }
 
+  // ── WB round labels ──
+  for (const rNum of wbRoundNums) {
+    const stageName = wbByRound[rNum][0]?.stage?.name;
+    const label = stageName === 'Верхняя сетка'
+      ? `WB R${rNum}`
+      : (stageName ?? `WB R${rNum}`);
+    const topY = Math.min(...wbByRound[rNum].map((m) => yPos.get(m.id) ?? 0));
+    nodes.push({
+      id: `label-wb${rNum}`,
+      type: 'label',
+      position: { x: (rNum - 1) * COL_W, y: topY - 28 },
+      data: { label },
+      selectable: false, draggable: false,
+    });
+  }
+
   // ── WB nodes + edges ──
   for (const m of wbMatches) {
     const x = (m.roundNumber - 1) * COL_W;
@@ -601,6 +657,19 @@ function buildDoubleEliminationGraph(matches: any[]): { nodes: Node[]; edges: Ed
     }
   }
 
+  // ── LB round labels ──
+  for (const rNum of lbRoundNums) {
+    const k = rNum - wbRounds;
+    const topY = Math.min(...lbByRound[rNum].map((m) => yPos.get(m.id) ?? lbYOffset));
+    nodes.push({
+      id: `label-lb${rNum}`,
+      type: 'label',
+      position: { x: k * COL_W, y: topY - 28 },
+      data: { label: `LB R${k}` },
+      selectable: false, draggable: false,
+    });
+  }
+
   // ── LB nodes + edges ──
   for (const m of lbMatches) {
     const k = m.roundNumber - wbRounds; // 1-based LB round index
@@ -623,7 +692,7 @@ function buildDoubleEliminationGraph(matches: any[]): { nodes: Node[]; edges: Ed
     }
   }
 
-  // ── GF node ──
+  // ── GF label + node ──
   const gfCol = Math.max(wbRounds - 1, lbRoundNums.length) + 1;
   const wbFinalMatch = wbRoundNums.length > 0
     ? wbByRound[wbRoundNums[wbRoundNums.length - 1]]?.[0]
@@ -635,6 +704,15 @@ function buildDoubleEliminationGraph(matches: any[]): { nodes: Node[]; edges: Ed
   const lbFinalY = lbFinalMatch ? (yPos.get(lbFinalMatch.id) ?? lbYOffset) : lbYOffset;
   const gfY = (wbFinalY + lbFinalY) / 2;
 
+  if (gfMatches.length > 0) {
+    nodes.push({
+      id: 'label-gf',
+      type: 'label',
+      position: { x: gfCol * COL_W, y: gfY - 28 },
+      data: { label: 'Гранд-финал' },
+      selectable: false, draggable: false,
+    });
+  }
   for (const m of gfMatches) {
     nodes.push({
       id: String(m.id),

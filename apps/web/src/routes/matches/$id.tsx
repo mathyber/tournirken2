@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -39,6 +39,16 @@ function MatchPage() {
   const [isFinal, setIsFinal] = useState(false);
   const [info, setInfo] = useState('');
   const [error, setError] = useState('');
+
+  // Default isFinal=true for organizers once match data loads
+  const isFinalInitialized = useRef(false);
+  useEffect(() => {
+    if (match?.id && !isFinalInitialized.current) {
+      isFinalInitialized.current = true;
+      const isOrg = match.tournament?.organizerId === user?.id || isAdmin() || isModerator();
+      if (isOrg) setIsFinal(true);
+    }
+  }, [match?.id]);
 
   const setResultMutation = useMutation({
     mutationFn: () => matchesApi.setResult(matchId, {

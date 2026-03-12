@@ -150,6 +150,7 @@
   "organizer.participants": "Удзельнікі ({{count}})",
   "organizer.minParticipants": "Трэба мінімум 2 удзельнікі для запуску",
   "organizer.bracketEditor": "Рэдактар сеткі",
+  "organizer.bracketViewer": "Турнірная сетка",
   "organizer.saveDraft": "Захаваць чарнавік",
   "organizer.launchTitle": "Запусціць турнір",
   "organizer.launchDesc": "Пасля запуску рэгістрацыя закрываецца, аўтаматычна генеруюцца матчы адпаведна фармату \"{{format}}\". Гэта дзеянне незваротнае.",
