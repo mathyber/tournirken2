@@ -297,10 +297,6 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
       if (tournament._count.participants >= tournament.maxParticipants) {
         return badRequest(reply, 'Турнир заполнен');
       }
-      if (tournament.organizerId === request.userId) {
-        return badRequest(reply, 'Организатор не может участвовать');
-      }
-
       const existing = await prisma.tournamentParticipant.findUnique({
         where: { tournamentId_userId: { tournamentId: id, userId: request.userId! } },
       });
@@ -337,6 +333,47 @@ export default async function tournamentRoutes(fastify: FastifyInstance) {
 
       await prisma.tournamentParticipant.delete({ where: { id: participant.id } });
       return reply.send({ message: 'Вы покинули турнир' });
+    }
+  );
+
+  // POST /api/tournaments/:id/fill-random (admin only)
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/fill-random',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const isAdmin = request.userRoles?.includes('ADMIN') || request.userRoles?.includes('MODERATOR');
+      if (!isAdmin) return forbidden(reply);
+
+      const id = parseInt(request.params.id);
+      if (isNaN(id)) return badRequest(reply, 'Неверный ID');
+
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: { _count: { select: { participants: true } } },
+      });
+      if (!tournament) return notFound(reply, 'Турнир не найден');
+      if (tournament.status !== 'REGISTRATION') return badRequest(reply, 'Регистрация недоступна');
+
+      const slots = tournament.maxParticipants - tournament._count.participants;
+      if (slots <= 0) return badRequest(reply, 'Турнир заполнен');
+
+      const existing = await prisma.tournamentParticipant.findMany({
+        where: { tournamentId: id },
+        select: { userId: true },
+      });
+      const existingIds = new Set(existing.map((p) => p.userId));
+
+      const allUsers = await prisma.user.findMany({ select: { id: true } });
+      const candidates = allUsers.filter((u) => !existingIds.has(u.id));
+
+      const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, slots);
+      if (shuffled.length === 0) return badRequest(reply, 'Нет доступных пользователей');
+
+      await prisma.tournamentParticipant.createMany({
+        data: shuffled.map((u) => ({ tournamentId: id, userId: u.id })),
+      });
+
+      return reply.send({ added: shuffled.length });
     }
   );
 

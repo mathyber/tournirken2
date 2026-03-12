@@ -36,6 +36,9 @@ export const tournamentsApi = {
 
   openRegistration: (id: number) =>
     api.post(`/tournaments/${id}/open-registration`).then((r) => r.data),
+
+  fillRandom: (id: number) =>
+    api.post(`/tournaments/${id}/fill-random`).then((r) => r.data),
 };
 
 export const gamesApi = {

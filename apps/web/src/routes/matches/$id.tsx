@@ -31,6 +31,7 @@ function MatchPage() {
   const { data: match, isLoading } = useQuery({
     queryKey: ['match', matchId],
     queryFn: () => matchesApi.get(matchId),
+    refetchInterval: (query) => query.state.data?.isFinished ? false : 5000,
   });
 
   const [score1, setScore1] = useState('0');
@@ -169,11 +170,17 @@ function MatchPage() {
               />
             </div>
 
-            {isOrganizer && (
-              <div className="flex items-center gap-2">
-                <Switch id="is-final" checked={isFinal} onCheckedChange={setIsFinal} />
-                <Label htmlFor="is-final">{t('match.finalResult')}</Label>
-              </div>
+            <div className="flex items-center gap-2">
+              <Switch id="is-final" checked={isFinal} onCheckedChange={setIsFinal} />
+              <Label htmlFor="is-final">
+                {isOrganizer ? t('match.finalResult') : t('match.finalResultPlayer')}
+              </Label>
+            </div>
+
+            {isFinal && !isOrganizer && (
+              <p className="text-xs text-amber-600">
+                {t('match.finalResultPlayerHint')}
+              </p>
             )}
 
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -185,12 +192,6 @@ function MatchPage() {
             >
               {setResultMutation.isPending ? t('match.savingResult') : t('match.saveResult')}
             </Button>
-
-            {!isFinal && (
-              <p className="text-xs text-muted-foreground text-center">
-                {t('match.autoFinish')}
-              </p>
-            )}
           </CardContent>
         </Card>
       )}
@@ -209,7 +210,11 @@ function MatchPage() {
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">@{r.setByUser?.login}</p>
                   <p className="text-xs text-muted-foreground">{format(new Date(r.createdAt), 'd MMM HH:mm', { locale: dateLocale })}</p>
-                  {r.isFinal && <Badge variant="success" className="text-xs mt-1">{t('match.confirmed')}</Badge>}
+                  {r.isAccepted ? (
+                    <Badge variant="success" className="text-xs mt-1">{t('match.confirmed')}</Badge>
+                  ) : r.isFinal ? (
+                    <Badge variant="outline" className="text-xs mt-1">{t('match.markedFinal')}</Badge>
+                  ) : null}
                 </div>
               </div>
             ))}

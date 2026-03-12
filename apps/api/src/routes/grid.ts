@@ -187,6 +187,7 @@ export default async function gridRoutes(fastify: FastifyInstance) {
 
         return reply.send({ message: 'Турнир запущен' });
       } catch (err: any) {
+        console.error('Grid generation error:', err);
         return reply.status(500).send({ error: 'Ошибка генерации турнирной сетки', details: err.message });
       }
     }

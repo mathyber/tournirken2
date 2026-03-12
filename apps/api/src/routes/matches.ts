@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
 import { badRequest, forbidden, notFound, unauthorized } from '../lib/errors';
 import { SetMatchResultSchema } from '@tournirken/shared';
-import { advanceWinner, generateSwissRound, generateSingleElimination } from '../services/brackets';
+import { advanceWinner, advanceLoser, generateSwissRound, generateSingleElimination, getSwissStandings } from '../services/brackets';
 
 const MATCH_INCLUDE = {
   stage: true,
@@ -44,6 +44,7 @@ export default async function matchRoutes(fastify: FastifyInstance) {
           player1: { select: { userId: true } },
           player2: { select: { userId: true } },
           results: { orderBy: { createdAt: 'desc' } },
+          group: { select: { id: true } },
         },
       });
       if (!match) return notFound(reply, 'Матч не найден');
@@ -69,6 +70,11 @@ export default async function matchRoutes(fastify: FastifyInstance) {
 
       const { player1Score, player2Score, isFinal, info } = result.data;
 
+      const isPlayoffMatch = !match.group;
+      if (isPlayoffMatch && isFinal && player1Score === player2Score) {
+        return badRequest(reply, 'В матчах плей-офф финальный результат не может быть ничьей');
+      }
+
       // Create result record
       const matchResult = await prisma.matchResult.create({
         data: {
@@ -76,7 +82,7 @@ export default async function matchRoutes(fastify: FastifyInstance) {
           setByUserId: userId,
           player1Score,
           player2Score,
-          isFinal: isOrganizer ? isFinal : false,
+          isFinal: isFinal,
           info,
         },
       });
@@ -86,24 +92,27 @@ export default async function matchRoutes(fastify: FastifyInstance) {
       let finalWinnerId: number | null = null;
       let finalP1Score = player1Score;
       let finalP2Score = player2Score;
+      const acceptedResultIds: number[] = [];
 
       if (isOrganizer && isFinal) {
         shouldFinish = true;
-      } else if (!match.tournament.onlyOrganizerSetsResults) {
-        // Check if both participants submitted identical final scores
+        acceptedResultIds.push(matchResult.id);
+      } else if (!match.tournament.onlyOrganizerSetsResults && isFinal) {
+        // Both players must submit identical FINAL results
         const p1UserId = match.player1?.userId;
         const p2UserId = match.player2?.userId;
 
         const p1Submissions = match.results.filter(
-          (r) => r.setByUserId === p1UserId
+          (r) => r.setByUserId === p1UserId && r.isFinal
         );
         const p2Submissions = match.results.filter(
-          (r) => r.setByUserId === p2UserId
+          (r) => r.setByUserId === p2UserId && r.isFinal
         );
 
-        // Include the new result
-        const allP1 = p1UserId === userId ? [matchResult, ...p1Submissions] : p1Submissions;
-        const allP2 = p2UserId === userId ? [matchResult, ...p2Submissions] : p2Submissions;
+        // Include the new result (already saved with isFinal: false above, update in-memory)
+        const newResultAsFinal = { ...matchResult, isFinal: true };
+        const allP1 = p1UserId === userId ? [newResultAsFinal, ...p1Submissions] : p1Submissions;
+        const allP2 = p2UserId === userId ? [newResultAsFinal, ...p2Submissions] : p2Submissions;
 
         const latestP1 = allP1.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
         const latestP2 = allP2.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
@@ -114,6 +123,7 @@ export default async function matchRoutes(fastify: FastifyInstance) {
           shouldFinish = true;
           finalP1Score = latestP1.player1Score;
           finalP2Score = latestP1.player2Score;
+          acceptedResultIds.push(latestP1.id, latestP2.id);
         }
       }
 
@@ -127,10 +137,10 @@ export default async function matchRoutes(fastify: FastifyInstance) {
           data: { isFinished: true, winnerId: finalWinnerId },
         });
 
-        // Mark result as final
-        await prisma.matchResult.update({
-          where: { id: matchResult.id },
-          data: { isFinal: true },
+        // Mark accepted results
+        await prisma.matchResult.updateMany({
+          where: { id: { in: acceptedResultIds } },
+          data: { isFinal: true, isAccepted: true },
         });
 
         // Advance winner to next match (for elimination formats)
@@ -141,6 +151,18 @@ export default async function matchRoutes(fastify: FastifyInstance) {
             winnerId: finalWinnerId,
             nextMatchId: fullMatch.nextMatchId,
             nextMatchSlot: fullMatch.nextMatchSlot,
+          });
+        }
+
+        // Advance loser to lower bracket (for double elimination WB matches)
+        if (fullMatch?.loserNextMatchId && finalWinnerId) {
+          await advanceLoser({
+            id: fullMatch.id,
+            player1Id: fullMatch.player1Id,
+            player2Id: fullMatch.player2Id,
+            winnerId: finalWinnerId,
+            loserNextMatchId: fullMatch.loserNextMatchId,
+            loserNextMatchSlot: fullMatch.loserNextMatchSlot,
           });
         }
 
@@ -260,7 +282,7 @@ async function checkAndGenerateMixedPlayoff(tournamentId: number, allParticipant
   const groups = await prisma.tournamentGroup.findMany({
     where: { tournamentId },
     include: {
-      matches: true,
+      matches: { include: { results: { where: { isAccepted: true }, take: 1 } } },
       participants: { include: { participant: true } },
     },
   });
@@ -321,7 +343,12 @@ function computeGroupStandings(group: any) {
     const p2 = stats[match.player2Id];
     if (!p1 || !p2) continue;
 
-    // We'd need results here — simplified: use winnerId
+    const accepted = match.results?.[0];
+    const s1 = accepted?.player1Score ?? 0;
+    const s2 = accepted?.player2Score ?? 0;
+    p1.gf += s1; p1.gd += s1 - s2;
+    p2.gf += s2; p2.gd += s2 - s1;
+
     if (match.winnerId === match.player1Id) {
       p1.points += group.pointsForWin;
     } else if (match.winnerId === match.player2Id) {
@@ -332,5 +359,7 @@ function computeGroupStandings(group: any) {
     }
   }
 
-  return Object.values(stats).sort((a, b) => b.points - a.points);
+  return Object.values(stats).sort((a, b) =>
+    b.points - a.points || b.gd - a.gd || b.gf - a.gf
+  );
 }

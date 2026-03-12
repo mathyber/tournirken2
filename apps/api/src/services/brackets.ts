@@ -106,7 +106,9 @@ export async function generateDoubleElimination(
   const lbStage = await ensureStage('Нижняя сетка');
   const grandFinalStage = await ensureStage('Гранд-финал');
 
-  // Upper bracket round 1
+  // ── Upper Bracket ─────────────────────────────────────────────────────────
+
+  // WB Round 1
   const wbRound1: any[] = [];
   for (let i = 0; i < seeded.length; i += 2) {
     const p1 = seeded[i];
@@ -127,9 +129,9 @@ export async function generateDoubleElimination(
     wbRound1.push(m);
   }
 
-  // Upper bracket subsequent rounds
+  // WB rounds 2..rounds
   let prevWB = wbRound1;
-  const allWBMatches: any[][] = [wbRound1];
+  const allWBMatches: any[][] = [wbRound1]; // index 0 = WBR1
   for (let round = 2; round <= rounds; round++) {
     const nextCount = Math.ceil(prevWB.length / 2);
     const nextRound: any[] = [];
@@ -148,7 +150,7 @@ export async function generateDoubleElimination(
       });
       prevWB[i] = { ...prevWB[i], nextMatchId, nextMatchSlot };
     }
-    // Auto-advance byes
+    // Auto-advance WBR1 byes up the WB
     for (const m of prevWB) {
       if (m.isBye && m.winnerId) {
         await advanceWinner(m);
@@ -158,51 +160,137 @@ export async function generateDoubleElimination(
     prevWB = nextRound;
   }
 
-  // Lower bracket (simplified: one round per WB round feeding in)
-  // LB has (rounds * 2 - 1) rounds
-  const lbRounds = rounds * 2 - 1;
-  const allLBMatches: any[][] = [];
-  let lbMatchCount = Math.floor(wbRound1.length / 2);
-  let prevLB: any[] = [];
+  // ── Lower Bracket ─────────────────────────────────────────────────────────
+  // totalLBRounds = 2 * (rounds - 1)
+  // For lbRound k: matchCount = wbR1Count / 2^ceil(k/2)
+  //   lbRound=1 (drop from WBR1):           wbR1Count / 2^1 matches
+  //   lbRound=2 (vs WBR2 losers):            wbR1Count / 2^1 matches
+  //   lbRound=3 (pure survivor):             wbR1Count / 2^2 matches
+  //   lbRound=4 (vs WBR3 losers):            wbR1Count / 2^2 matches
+  //   ...
 
-  for (let lbRound = 1; lbRound <= lbRounds; lbRound++) {
-    const currentCount = lbRound === 1 ? lbMatchCount : Math.ceil(prevLB.length / 2);
+  const wbR1Count = wbRound1.length; // = totalSlots / 2
+  const totalLBRounds = 2 * (rounds - 1);
+  const allLBMatches: any[][] = []; // index 0 = LBR1
+
+  for (let lbRound = 1; lbRound <= totalLBRounds; lbRound++) {
+    const k = Math.ceil(lbRound / 2);
+    const matchCount = wbR1Count / Math.pow(2, k);
     const currentRound: any[] = [];
-    for (let i = 0; i < Math.max(1, currentCount); i++) {
+    for (let i = 0; i < matchCount; i++) {
       const m = await prisma.match.create({
         data: { tournamentId, stageId: lbStage.id, roundNumber: lbRound + rounds },
       });
       currentRound.push(m);
     }
-
-    if (prevLB.length > 0) {
-      for (let i = 0; i < prevLB.length; i++) {
-        await prisma.match.update({
-          where: { id: prevLB[i].id },
-          data: { nextMatchId: currentRound[Math.floor(i / 2)].id, nextMatchSlot: (i % 2) + 1 },
-        });
-      }
-    }
-
     allLBMatches.push(currentRound);
-    prevLB = currentRound;
   }
 
-  // Grand final
+  // ── Wire up LB internal progression ───────────────────────────────────────
+  for (let lbRound = 1; lbRound <= totalLBRounds; lbRound++) {
+    const currentRound = allLBMatches[lbRound - 1];
+    if (lbRound === totalLBRounds) continue; // LB Final feeds Grand Final (wired below)
+    const nextLBRound = allLBMatches[lbRound]; // index lbRound = lbRound+1 - 1
+
+    if (lbRound % 2 === 0) {
+      // Even rounds: 2-to-1 pairing into next odd round
+      // currentRound[2i]   → nextLBRound[i] slot 1
+      // currentRound[2i+1] → nextLBRound[i] slot 2
+      for (let i = 0; i < currentRound.length; i++) {
+        const destIdx = Math.floor(i / 2);
+        const slot = (i % 2) + 1;
+        await prisma.match.update({
+          where: { id: currentRound[i].id },
+          data: { nextMatchId: nextLBRound[destIdx].id, nextMatchSlot: slot },
+        });
+        currentRound[i] = { ...currentRound[i], nextMatchId: nextLBRound[destIdx].id, nextMatchSlot: slot };
+      }
+    } else {
+      // Odd rounds (1, 3, 5, ...): 1-to-1 into next even round
+      // LBR(odd)[i] winner → LBR(odd+1)[i] slot 1 (WB loser fills slot 2)
+      for (let i = 0; i < currentRound.length; i++) {
+        await prisma.match.update({
+          where: { id: currentRound[i].id },
+          data: { nextMatchId: nextLBRound[i].id, nextMatchSlot: 1 },
+        });
+        currentRound[i] = { ...currentRound[i], nextMatchId: nextLBRound[i].id, nextMatchSlot: 1 };
+      }
+    }
+  }
+
+  // ── Wire WB losers into LB ─────────────────────────────────────────────────
+  // lbRound=1: WBR1 losers fill LBR1 pairs
+  //   WBR1[2i]   → LBR1[i] slot1 (via loserNextMatchId)
+  //   WBR1[2i+1] → LBR1[i] slot2 (via loserNextMatchId)
+  //   Skip BYE matches (no loser)
+  const lbR1 = allLBMatches[0];
+  for (let i = 0; i < wbRound1.length; i++) {
+    if (wbRound1[i].isBye) continue; // BYE has no loser
+    const destIdx = Math.floor(i / 2);
+    const slot = (i % 2) + 1;
+    await prisma.match.update({
+      where: { id: wbRound1[i].id },
+      data: { loserNextMatchId: lbR1[destIdx].id, loserNextMatchSlot: slot },
+    });
+    wbRound1[i] = { ...wbRound1[i], loserNextMatchId: lbR1[destIdx].id, loserNextMatchSlot: slot };
+  }
+
+  // Even lbRounds: WBR(k+1) losers → LBR(even) slot2, where k = lbRound/2
+  for (let lbRound = 2; lbRound <= totalLBRounds; lbRound += 2) {
+    const k = lbRound / 2; // which WB round's losers drop here
+    // WBR(k+1) = allWBMatches[k] (0-indexed: allWBMatches[0] = WBR1, allWBMatches[k] = WBR(k+1))
+    const wbRoundMatches = allWBMatches[k]; // WBR(k+1) matches
+    const lbTarget = allLBMatches[lbRound - 1]; // LBR(lbRound) matches (0-indexed)
+    if (!wbRoundMatches || !lbTarget) continue;
+    for (let i = 0; i < wbRoundMatches.length; i++) {
+      await prisma.match.update({
+        where: { id: wbRoundMatches[i].id },
+        data: { loserNextMatchId: lbTarget[i].id, loserNextMatchSlot: 2 },
+      });
+      wbRoundMatches[i] = { ...wbRoundMatches[i], loserNextMatchId: lbTarget[i].id, loserNextMatchSlot: 2 };
+    }
+  }
+
+  // ── Grand Final ───────────────────────────────────────────────────────────
   const wbFinal = allWBMatches[allWBMatches.length - 1][0];
   const lbFinal = allLBMatches[allLBMatches.length - 1][0];
   const grandFinal = await prisma.match.create({
-    data: { tournamentId, stageId: grandFinalStage.id, roundNumber: rounds + lbRounds + 1 },
+    data: { tournamentId, stageId: grandFinalStage.id, roundNumber: rounds + totalLBRounds + 1 },
   });
 
+  // WB Final winner → GF slot1
   await prisma.match.update({
     where: { id: wbFinal.id },
     data: { nextMatchId: grandFinal.id, nextMatchSlot: 1 },
   });
+  // LB Final winner → GF slot2
   await prisma.match.update({
     where: { id: lbFinal.id },
     data: { nextMatchId: grandFinal.id, nextMatchSlot: 2 },
   });
+
+  // Detect LBR1 matches that will NEVER receive any player (both WBR1 feeders are BYEs).
+  // Mark them as dead (isFinished: true, isBye: true, winnerId: null) so that
+  // downstream advanceLoser calls can correctly skip them via the willGetWinner check.
+  for (let i = 0; i < lbR1.length; i++) {
+    const lbMatch = lbR1[i]; // in-memory; no slots filled yet at generation time
+    const slot1WillFill = wbRound1.some(
+      (m: any) => !m.isBye && m.loserNextMatchId === lbMatch.id && m.loserNextMatchSlot === 1
+    );
+    const slot2WillFill = wbRound1.some(
+      (m: any) => !m.isBye && m.loserNextMatchId === lbMatch.id && m.loserNextMatchSlot === 2
+    );
+    if (!slot1WillFill && !slot2WillFill) {
+      // No real WBR1 loser feeds either slot — match is permanently empty.
+      await prisma.match.update({
+        where: { id: lbMatch.id },
+        data: { isFinished: true, isBye: true, winnerId: null },
+      });
+      // winnerId is null so there is nothing to advance to LBR2.
+      // The downstream even-round match will auto-BYE when its WB loser arrives,
+      // because willGetWinner (with isFinished: false filter) will correctly return null.
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -404,6 +492,73 @@ export async function advanceWinner(match: {
     // Wait for slot 2
   } else if (!updated.player1Id && updated.player2Id) {
     // Wait for slot 1
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Advance loser to lower bracket (Double Elimination)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function advanceLoser(match: {
+  id: number;
+  player1Id: number | null;
+  player2Id: number | null;
+  winnerId: number | null;
+  loserNextMatchId?: number | null;
+  loserNextMatchSlot?: number | null;
+}) {
+  if (!match.loserNextMatchId) return;
+  const loserId = match.winnerId === match.player1Id ? match.player2Id : match.player1Id;
+  if (!loserId) return;
+
+  const updateData: any = match.loserNextMatchSlot === 1
+    ? { player1Id: loserId }
+    : { player2Id: loserId };
+
+  const lbMatch = await prisma.match.update({
+    where: { id: match.loserNextMatchId },
+    data: updateData,
+  });
+
+  // Check if the other slot will ever be filled; if not, auto-advance as BYE
+  const otherSlot = match.loserNextMatchSlot === 1 ? 2 : 1;
+  const otherFilled = otherSlot === 1 ? !!lbMatch.player1Id : !!lbMatch.player2Id;
+
+  if (!otherFilled) {
+    const [willGetLoser, willGetWinner] = await Promise.all([
+      prisma.match.findFirst({
+        where: {
+          loserNextMatchId: match.loserNextMatchId,
+          loserNextMatchSlot: otherSlot,
+          isBye: false,
+          isFinished: false,
+        },
+      }),
+      prisma.match.findFirst({
+        where: {
+          nextMatchId: match.loserNextMatchId,
+          nextMatchSlot: otherSlot,
+          isFinished: false, // dead matches (isFinished: true, winnerId: null) must not block
+        },
+      }),
+    ]);
+
+    if (!willGetLoser && !willGetWinner) {
+      // Permanently empty slot — auto-advance the lone player as BYE
+      await prisma.match.update({
+        where: { id: match.loserNextMatchId },
+        data: { isFinished: true, isBye: true, winnerId: loserId },
+      });
+      const fullLbMatch = await prisma.match.findUnique({ where: { id: match.loserNextMatchId } });
+      if (fullLbMatch?.nextMatchId) {
+        await advanceWinner({
+          id: fullLbMatch.id,
+          winnerId: loserId,
+          nextMatchId: fullLbMatch.nextMatchId,
+          nextMatchSlot: fullLbMatch.nextMatchSlot,
+        });
+      }
+    }
   }
 }
 

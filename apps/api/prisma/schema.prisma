@@ -139,6 +139,8 @@ model Match {
   isBye        Boolean @default(false)
   nextMatchId  Int?
   nextMatchSlot Int?   // 1 or 2 (which slot in the next match)
+  loserNextMatchId  Int?
+  loserNextMatchSlot Int?
 
   tournament Tournament            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   stage      Stage?                @relation(fields: [stageId], references: [id])
@@ -157,6 +159,7 @@ model MatchResult {
   player2Score Int
   info         String?
   isFinal      Boolean  @default(false)
+  isAccepted   Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)

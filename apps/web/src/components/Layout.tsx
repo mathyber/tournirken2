@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth';
 import { authApi } from '../api/auth';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, logout, isModerator } = useAuthStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { t } = useTranslation();
   const [darkMode, setDarkMode] = React.useState(
     () => document.documentElement.classList.contains('dark')
@@ -35,6 +37,7 @@ export function Layout({ children }: LayoutProps) {
   const handleLogout = async () => {
     try { await authApi.logout(); } catch {}
     logout();
+    queryClient.clear();
     navigate({ to: '/' });
   };
 

@@ -7,10 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { authApi } from '../api/auth';
 import { useAuthStore } from '../stores/auth';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 
 export function AuthForms() {
   const { login } = useAuthStore();
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
 
   const [loginForm, setLoginForm] = useState({ login: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ login: '', email: '', password: '' });
@@ -24,6 +26,7 @@ export function AuthForms() {
     setLoading(true);
     try {
       const data = await authApi.login(loginForm);
+      queryClient.clear();
       login(data.accessToken, data.user);
     } catch (err: any) {
       setLoginError(err.response?.data?.error || t('auth.loginError'));

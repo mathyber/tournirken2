@@ -21,7 +21,7 @@ export const Route = createFileRoute('/tournaments/$id')({
 function TournamentPage() {
   const { id } = Route.useParams();
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
-  const { user } = useAuthStore();
+  const { user, isAdmin } = useAuthStore();
   const { t } = useTranslation();
   const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
 
@@ -52,6 +52,14 @@ function TournamentPage() {
     queryKey: ['tournament-groups', tournamentId],
     queryFn: () => tournamentsApi.groups(tournamentId),
     enabled: !!tournament && ['ROUND_ROBIN', 'MIXED', 'SWISS'].includes(tournament?.format),
+  });
+
+  const fillRandomMutation = useMutation({
+    mutationFn: () => tournamentsApi.fillRandom(tournamentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId] });
+      queryClient.invalidateQueries({ queryKey: ['tournament-participants', tournamentId] });
+    },
   });
 
   const joinMutation = useMutation({
@@ -109,6 +117,16 @@ function TournamentPage() {
             <div className="flex items-center gap-1.5">
               <Users className="h-4 w-4 text-muted-foreground" />
               <span>{t('tournament.participants', { count: tournament.participantCount, max: tournament.maxParticipants })}</span>
+              {isAdmin() && tournament.status === 'REGISTRATION' && !isFull && (
+                <button
+                  onClick={() => fillRandomMutation.mutate()}
+                  disabled={fillRandomMutation.isPending}
+                  title="[dev] заполнить случайными юзерами"
+                  className="ml-1 text-[10px] text-muted-foreground/40 hover:text-muted-foreground cursor-pointer select-none"
+                >
+                  {fillRandomMutation.isPending ? '...' : '⚄'}
+                </button>
+              )}
             </div>
             <div>
               <span className="text-muted-foreground">{t('tournament.organizer')} </span>
@@ -134,11 +152,12 @@ function TournamentPage() {
           )}
 
           <div className="flex gap-2 flex-wrap pt-2">
-            {isOrganizer ? (
+            {isOrganizer && (
               <Link to="/tournaments/$id/organizer" params={{ id }}>
                 <Button className="gap-2"><Settings className="h-4 w-4" />{t('btn.organizerPanel')}</Button>
               </Link>
-            ) : user ? (
+            )}
+            {user && (
               myParticipation ? (
                 <Button
                   variant="outline"
@@ -160,7 +179,7 @@ function TournamentPage() {
                   {joinMutation.isPending ? t('btn.joining') : isFull ? t('btn.full') : t('btn.join')}
                 </Button>
               )
-            ) : null}
+            )}
 
             {(tournament.status === 'ACTIVE' || tournament.status === 'FINISHED') && (
               <Link to="/tournaments/$id/bracket" params={{ id }}>
@@ -253,7 +272,7 @@ function TournamentPage() {
         </TabsContent>
 
         <TabsContent value="matches" className="mt-4">
-          <MatchesList matches={matches} userId={user?.id} />
+          <MatchesList matches={matches as any[]} userId={user?.id} />
         </TabsContent>
 
         <TabsContent value="groups" className="mt-4">
@@ -266,7 +285,10 @@ function TournamentPage() {
 
 function MatchesList({ matches, userId }: { matches: any[]; userId?: number }) {
   const { t } = useTranslation();
-  const grouped = matches.reduce((acc: any, m: any) => {
+  // Filter out dead matches (isBye with no players at all — phantom bracket slots)
+  const visible = matches.filter((m: any) => !(m.isBye && !m.player1 && !m.player2));
+
+  const grouped = visible.reduce((acc: any, m: any) => {
     const key = m.stage?.name ?? (m.roundNumber ? t('match.round', { n: m.roundNumber }) : 'Other matches');
     if (!acc[key]) acc[key] = [];
     acc[key].push(m);
@@ -291,8 +313,21 @@ function MatchesList({ matches, userId }: { matches: any[]; userId?: number }) {
 
 function MatchCard({ match, userId }: { match: any; userId?: number }) {
   const { t } = useTranslation();
+
+  // BYE with exactly one player — show auto-advance chip, no link
+  if (match.isBye && match.winner) {
+    const login = match.winner.user?.login;
+    const isMe = match.winner.user?.id === userId;
+    return (
+      <div className={`flex items-center gap-2 px-3 py-2 rounded-md border border-dashed text-sm text-muted-foreground ${isMe ? 'border-blue-300 bg-blue-50/30' : 'bg-muted/20'}`}>
+        <span className="font-medium text-foreground">@{login}</span>
+        <span>{t('match.advancesAuto')}</span>
+      </div>
+    );
+  }
+
   const isMyMatch = match.player1?.user?.id === userId || match.player2?.user?.id === userId;
-  const result = match.results?.[0];
+  const result = match.results?.find((r: any) => r.isAccepted) ?? match.results?.[0];
 
   return (
     <Link to="/matches/$id" params={{ id: String(match.id) }}>
@@ -303,9 +338,7 @@ function MatchCard({ match, userId }: { match: any; userId?: number }) {
           </span>
         </div>
         <div className="w-20 text-center font-mono font-semibold">
-          {match.isBye ? (
-            <span className="text-xs text-muted-foreground">{t('match.bye')}</span>
-          ) : match.isFinished && result ? (
+          {match.isFinished && result ? (
             <span>{result.player1Score} : {result.player2Score}</span>
           ) : (
             <span className="text-muted-foreground text-xs">vs</span>

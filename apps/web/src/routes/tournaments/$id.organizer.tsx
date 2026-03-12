@@ -294,7 +294,7 @@ function MixedSetupCard({
   const unassigned = participants.filter((p) => !participantGroupMap[p.id]);
 
   const changeNumberOfGroups = (n: number) => {
-    const clamped = Math.max(2, Math.min(8, n));
+    const clamped = Math.max(1, Math.min(8, n));
     if (clamped > groups.length) {
       const extra = Array.from({ length: clamped - groups.length }, (_, i) => ({
         id: `grp-${groups.length + i}`,
@@ -332,11 +332,12 @@ function MixedSetupCard({
             <Label>{t('organizer.numberOfGroups')}</Label>
             <Input
               type="number"
-              min="2"
+              min="1"
               max="8"
               className="w-24"
-              value={groups.length}
-              onChange={(e) => changeNumberOfGroups(parseInt(e.target.value) || 2)}
+              defaultValue={groups.length}
+              key={groups.length}
+              onBlur={(e) => { const n = parseInt(e.target.value); if (n >= 1) changeNumberOfGroups(n); }}
             />
           </div>
           <div>
@@ -553,17 +554,16 @@ function EditTournamentCard({ tournament, tournamentId, queryClient }: { tournam
 
 function OrganizerMatchRow({ match, tournamentId, queryClient }: { match: any; tournamentId: number; queryClient: any }) {
   const { t } = useTranslation();
-  const [score1, setScore1] = useState('');
-  const [score2, setScore2] = useState('');
+  const [score1, setScore1] = useState('0');
+  const [score2, setScore2] = useState('0');
   const [submitting, setSubmitting] = useState(false);
 
   const handleSetResult = async () => {
-    if (!score1 || !score2) return;
     setSubmitting(true);
     try {
       await matchesApi.setResult(match.id, {
-        player1Score: parseInt(score1),
-        player2Score: parseInt(score2),
+        player1Score: parseInt(score1) || 0,
+        player2Score: parseInt(score2) || 0,
         isFinal: true,
       });
       queryClient.invalidateQueries({ queryKey: ['tournament-matches', tournamentId] });
@@ -595,7 +595,7 @@ function OrganizerMatchRow({ match, tournamentId, queryClient }: { match: any; t
           <Input className="w-14 h-8 text-center text-sm" type="number" min="0" value={score1} onChange={(e) => setScore1(e.target.value)} placeholder="0" />
           <span>:</span>
           <Input className="w-14 h-8 text-center text-sm" type="number" min="0" value={score2} onChange={(e) => setScore2(e.target.value)} placeholder="0" />
-          <Button size="sm" onClick={handleSetResult} disabled={submitting || !score1 || !score2}>ОК</Button>
+          <Button size="sm" onClick={handleSetResult} disabled={submitting}>ОК</Button>
         </div>
       ) : (
         <Badge variant="outline" className="text-xs">{t('match.waiting')}</Badge>

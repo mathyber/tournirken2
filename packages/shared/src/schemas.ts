@@ -74,7 +74,7 @@ export const FinalizeGridSchema = z.object({
     pointsForDraw: z.number().default(1),
   })).optional(),
   mixedConfig: z.object({
-    numberOfGroups: z.number().int().min(2),
+    numberOfGroups: z.number().int().min(1),
     advancePerGroup: z.number().int().min(1),
   }).optional(),
 });
