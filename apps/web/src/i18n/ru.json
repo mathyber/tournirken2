@@ -172,6 +172,10 @@
   "organizer.addParticipant": "Добавить участника...",
   "organizer.unassignedCount": "Не распределено: {{count}}",
   "organizer.unassignedParticipants": "Распределите всех участников по группам (осталось: {{count}})",
+  "organizer.bracketOnTournamentPage": "Турнир запущен. Турнирную сетку можно посмотреть на странице турнира.",
+  "organizer.mixedGroupConfig": "Настройка групп",
+  "organizer.numberOfGroups": "Количество групп",
+  "organizer.advancePerGroup": "Проходят из группы",
 
   "profile.loginRequired": "Войдите для просмотра профиля",
   "profile.title": "Мой профиль",
