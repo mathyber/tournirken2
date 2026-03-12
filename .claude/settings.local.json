@@ -46,7 +46,10 @@
       "Bash(curl -s \"http://localhost:3001/api/tournaments?name=%20%20%20\")",
       "Bash(\"/c/Program Files/nodejs/pnpm\" --filter api exec prisma migrate dev --name add_name_lower)",
       "Bash(\"/c/Program Files/nodejs/pnpm\" exec prisma generate)",
-      "Bash(curl -s \"http://localhost:3001/api/tournaments?name=%D0%BA%D1%80%D0%B5%D1%81%D1%82\")"
+      "Bash(curl -s \"http://localhost:3001/api/tournaments?name=%D0%BA%D1%80%D0%B5%D1%81%D1%82\")",
+      "Bash(curl -s \"http://localhost:3001/api/tournaments?name=%D0%9A%D1%80%D0%B5%D1%81%D1%82\")",
+      "Bash(curl -s \"http://localhost:3001/api/tournaments?name=%D0%A7%D0%95%D0%9C%D0%9F\")",
+      "Bash(curl -s \"http://localhost:3001/api/tournaments?game=%D0%BA%D1%80%D0%B5%D1%81%D1%82\")"
     ]
   }
 }
