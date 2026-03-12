@@ -36,7 +36,6 @@ function CreateTournamentPage() {
     info: '',
     logo: '',
     onlyOrganizerSetsResults: false,
-    openRegistrationNow: false,
     registrationStart: '',
     registrationEnd: '',
     swissRounds: '',
@@ -52,14 +51,7 @@ function CreateTournamentPage() {
   }));
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const { openRegistrationNow, ...createData } = data;
-      const tournament = await tournamentsApi.create(createData);
-      if (openRegistrationNow) {
-        await tournamentsApi.openRegistration(tournament.id);
-      }
-      return tournament;
-    },
+    mutationFn: (data: any) => tournamentsApi.create(data),
     onSuccess: (tournament) => navigate({ to: '/tournaments/$id', params: { id: String(tournament.id) } }),
     onError: (err: any) => setError(err.response?.data?.error || t('create.error')),
   });
@@ -84,7 +76,6 @@ function CreateTournamentPage() {
       info: form.info || undefined,
       logo: form.logo || undefined,
       onlyOrganizerSetsResults: form.onlyOrganizerSetsResults,
-      openRegistrationNow: form.openRegistrationNow,
       registrationStart: form.registrationStart || undefined,
       registrationEnd: form.registrationEnd || undefined,
       swissRounds: form.swissRounds ? parseInt(form.swissRounds) : undefined,
@@ -221,6 +212,7 @@ function CreateTournamentPage() {
                   value={form.registrationStart}
                   onChange={(e) => setForm((f) => ({ ...f, registrationStart: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground mt-1">{t('create.registrationStartHint')}</p>
               </div>
               <div>
                 <Label htmlFor="reg-end">{t('create.registrationEnd')}</Label>
@@ -246,16 +238,6 @@ function CreateTournamentPage() {
               <Switch
                 checked={form.onlyOrganizerSetsResults}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, onlyOrganizerSetsResults: v }))}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">{t('create.openRegistrationNow')}</p>
-                <p className="text-xs text-muted-foreground">{t('create.openRegistrationNowHint')}</p>
-              </div>
-              <Switch
-                checked={form.openRegistrationNow}
-                onCheckedChange={(v) => setForm((f) => ({ ...f, openRegistrationNow: v }))}
               />
             </div>
           </CardContent>
