@@ -313,6 +313,12 @@ function GroupCard({ group, tournamentId, t }: { group: any; tournamentId: numbe
 // ─── Graph builder ────────────────────────────────────────────────────────────
 
 function buildGraph(playoffMatches: any[], groups: any[]): { nodes: Node[]; edges: Edge[] } {
+  // Double Elimination: use dedicated layout
+  const hasLoserBracket = playoffMatches.some((m) => m.stage?.name === 'Нижняя сетка');
+  if (hasLoserBracket) {
+    return buildDoubleEliminationGraph(playoffMatches);
+  }
+
   const GROUP_W = GN.WIDTH;
   const MATCH_W = 240;
   const MATCH_H = 80;
@@ -391,7 +397,7 @@ function buildGraph(playoffMatches: any[], groups: any[]): { nodes: Node[]; edge
           id: `m-${m.id}-${m.nextMatchId}`,
           source: String(m.id),
           target: String(m.nextMatchId),
-          type: 'bezier',
+          type: 'smoothstep',
           animated: !m.isFinished,
           style: { stroke: '#94a3b8', strokeWidth: 2 },
         });
@@ -462,11 +468,178 @@ function buildGraph(playoffMatches: any[], groups: any[]): { nodes: Node[]; edge
           sourceHandle: `p-${s.participantId}`,
           target: String(target.matchId),
           targetHandle: target.slot,
-          type: 'bezier',
+          type: 'smoothstep',
           style: { stroke: color, strokeWidth: 1.5, opacity: 0.7 },
         });
       }
     }
+  }
+
+  return { nodes, edges };
+}
+
+// ─── Double Elimination layout ────────────────────────────────────────────────
+//
+// X-column alignment (timeline-based):
+//   WBR1=col0, WBR2=col1, ..., WBFinal=col(wbRounds-1)
+//   LBRk = col k  (LBR1=col1, LBR2=col2, ...)
+//   GF = col(max(wbRounds-1, totalLBRounds) + 1)
+//
+// Y zones:
+//   Top  = WB matches
+//   Bottom = LB matches, offset by (wbHeight + ZONE_GAP)
+//   GF vertically centered between WBFinal and LBFinal
+
+function buildDoubleEliminationGraph(matches: any[]): { nodes: Node[]; edges: Edge[] } {
+  const MATCH_W = 240;
+  const MATCH_H = 80;
+  const H_GAP = 90;
+  const V_GAP = 28;
+  const ZONE_GAP = 80;
+  const COL_W = MATCH_W + H_GAP;
+
+  const wbMatches = matches.filter((m) => m.stage?.name === 'Верхняя сетка');
+  const lbMatches = matches.filter((m) => m.stage?.name === 'Нижняя сетка');
+  const gfMatches = matches.filter((m) => m.stage?.name === 'Гранд-финал');
+
+  const wbRounds = wbMatches.length > 0 ? Math.max(...wbMatches.map((m) => m.roundNumber)) : 0;
+
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+
+  // feedersOf via nextMatchId (used for y-pos calculation)
+  const feedersOf = new Map<number, any[]>();
+  for (const m of matches) {
+    if (m.nextMatchId) {
+      if (!feedersOf.has(m.nextMatchId)) feedersOf.set(m.nextMatchId, []);
+      feedersOf.get(m.nextMatchId)!.push(m);
+    }
+  }
+
+  const yPos = new Map<number, number>();
+
+  // ── WB y-positions ──
+  const wbByRound: Record<number, any[]> = {};
+  for (const m of wbMatches) {
+    if (!wbByRound[m.roundNumber]) wbByRound[m.roundNumber] = [];
+    wbByRound[m.roundNumber].push(m);
+  }
+  const wbRoundNums = Object.keys(wbByRound).map(Number).sort((a, b) => a - b);
+  if (wbRoundNums.length > 0) {
+    wbByRound[wbRoundNums[0]].forEach((m, idx) => {
+      yPos.set(m.id, idx * (MATCH_H + V_GAP));
+    });
+    for (let ri = 1; ri < wbRoundNums.length; ri++) {
+      for (const m of wbByRound[wbRoundNums[ri]]) {
+        const feeders = (feedersOf.get(m.id) ?? []).filter(
+          (f) => f.stage?.name === 'Верхняя сетка',
+        );
+        const ys = feeders.map((f) => yPos.get(f.id) ?? 0);
+        yPos.set(m.id, ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0);
+      }
+    }
+  }
+
+  const wbYValues = [...yPos.values()];
+  const wbHeight = wbYValues.length > 0 ? Math.max(...wbYValues) + MATCH_H : MATCH_H;
+  const lbYOffset = wbHeight + ZONE_GAP;
+
+  // ── LB y-positions ──
+  const lbByRound: Record<number, any[]> = {};
+  for (const m of lbMatches) {
+    if (!lbByRound[m.roundNumber]) lbByRound[m.roundNumber] = [];
+    lbByRound[m.roundNumber].push(m);
+  }
+  const lbRoundNums = Object.keys(lbByRound).map(Number).sort((a, b) => a - b);
+  if (lbRoundNums.length > 0) {
+    lbByRound[lbRoundNums[0]].forEach((m, idx) => {
+      yPos.set(m.id, lbYOffset + idx * (MATCH_H + V_GAP));
+    });
+    for (let ri = 1; ri < lbRoundNums.length; ri++) {
+      for (const m of lbByRound[lbRoundNums[ri]]) {
+        const feeders = (feedersOf.get(m.id) ?? []).filter(
+          (f) => f.stage?.name === 'Нижняя сетка',
+        );
+        const ys = feeders.map((f) => yPos.get(f.id) ?? lbYOffset);
+        yPos.set(m.id, ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : lbYOffset);
+      }
+    }
+  }
+
+  // ── WB nodes + edges ──
+  for (const m of wbMatches) {
+    const x = (m.roundNumber - 1) * COL_W;
+    nodes.push({
+      id: String(m.id),
+      type: 'match',
+      position: { x, y: yPos.get(m.id) ?? 0 },
+      data: { match: m, p1GroupLabel: null, p1GroupIdx: 0, p2GroupLabel: null, p2GroupIdx: 0 },
+    });
+    // Winner edge (WB→WB or WB→GF)
+    if (m.nextMatchId) {
+      edges.push({
+        id: `w-${m.id}-${m.nextMatchId}`,
+        source: String(m.id),
+        target: String(m.nextMatchId),
+        type: 'smoothstep',
+        animated: !m.isFinished,
+        style: { stroke: '#94a3b8', strokeWidth: 2 },
+      });
+    }
+    // Loser edge (WB→LB)
+    if (m.loserNextMatchId && !m.isBye) {
+      edges.push({
+        id: `l-${m.id}-${m.loserNextMatchId}`,
+        source: String(m.id),
+        target: String(m.loserNextMatchId),
+        type: 'smoothstep',
+        animated: false,
+        style: { stroke: '#ef4444', strokeWidth: 1.5, strokeDasharray: '5 4', opacity: 0.55 },
+      });
+    }
+  }
+
+  // ── LB nodes + edges ──
+  for (const m of lbMatches) {
+    const k = m.roundNumber - wbRounds; // 1-based LB round index
+    const x = k * COL_W;
+    nodes.push({
+      id: String(m.id),
+      type: 'match',
+      position: { x, y: yPos.get(m.id) ?? lbYOffset },
+      data: { match: m, p1GroupLabel: null, p1GroupIdx: 0, p2GroupLabel: null, p2GroupIdx: 0 },
+    });
+    if (m.nextMatchId) {
+      edges.push({
+        id: `lb-${m.id}-${m.nextMatchId}`,
+        source: String(m.id),
+        target: String(m.nextMatchId),
+        type: 'smoothstep',
+        animated: !m.isFinished,
+        style: { stroke: '#f59e0b', strokeWidth: 2 },
+      });
+    }
+  }
+
+  // ── GF node ──
+  const gfCol = Math.max(wbRounds - 1, lbRoundNums.length) + 1;
+  const wbFinalMatch = wbRoundNums.length > 0
+    ? wbByRound[wbRoundNums[wbRoundNums.length - 1]]?.[0]
+    : null;
+  const lbFinalMatch = lbRoundNums.length > 0
+    ? lbByRound[lbRoundNums[lbRoundNums.length - 1]]?.[0]
+    : null;
+  const wbFinalY = wbFinalMatch ? (yPos.get(wbFinalMatch.id) ?? 0) : 0;
+  const lbFinalY = lbFinalMatch ? (yPos.get(lbFinalMatch.id) ?? lbYOffset) : lbYOffset;
+  const gfY = (wbFinalY + lbFinalY) / 2;
+
+  for (const m of gfMatches) {
+    nodes.push({
+      id: String(m.id),
+      type: 'match',
+      position: { x: gfCol * COL_W, y: gfY },
+      data: { match: m, p1GroupLabel: null, p1GroupIdx: 0, p2GroupLabel: null, p2GroupIdx: 0 },
+    });
   }
 
   return { nodes, edges };
