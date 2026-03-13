@@ -16,7 +16,7 @@ export const Route = createFileRoute('/tournaments/create')({
   component: CreateTournamentPage,
 });
 
-const FORMAT_VALUES = ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED'] as const;
+const FORMAT_VALUES = ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'ROUND_ROBIN', 'SWISS', 'MIXED', 'CUSTOM'] as const;
 
 function CreateTournamentPage() {
   const { user } = useAuthStore();

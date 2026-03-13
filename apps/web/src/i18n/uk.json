@@ -331,5 +331,30 @@
   "guide.profile.title": "Профіль та статистика",
   "guide.profile.screenshot": "Сторінка профілю",
   "guide.profile.screenshotCaption": "Профіль користувача: статистика турнірів, зміна email та пароля",
-  "guide.profile.desc": "У профілі відображається статистика участі: кількість турнірів, перемог, других місць та організованих змагань. Також можна змінити email та пароль."
+  "guide.profile.desc": "У профілі відображається статистика участі: кількість турнірів, перемог, других місць та організованих змагань. Також можна змінити email та пароль.",
+
+  "format.CUSTOM": "Кастомний",
+  "format.CUSTOM_short": "Кастомний",
+  "format.CUSTOM_desc": "Створіть сітку турніру вручну за допомогою візуального конструктора перетягування.",
+
+  "custom.openBuilder": "Відкрити конструктор",
+  "custom.builderTitle": "Конструктор сітки",
+  "custom.saveSchema": "Зберегти схему",
+  "custom.schemaSaved": "Схему збережено",
+  "custom.addNode": "Додати вузол",
+  "custom.addMatch": "+ Матч",
+  "custom.addGroup": "+ Група",
+  "custom.addParticipant": "+ Учасник",
+  "custom.addFinal": "+ Переможець",
+  "custom.legend": "Позначення",
+  "custom.winnerEdge": "Переможець",
+  "custom.loserEdge": "Переможений",
+  "custom.participantEdge": "Учасник",
+  "custom.handles": "Підказка",
+  "custom.handlesDesc": "Зелена точка = переможець, червона = переможений. Перетягніть із точки на вхідний слот іншого вузла.",
+  "custom.validationErrors": "помилок",
+  "custom.validationTitle": "Помилки валідації",
+  "custom.viewSchema": "Переглянути схему",
+  "custom.viewTitle": "Схема турніру",
+  "custom.viewOnlyBanner": "Перегляд схеми — лише читання. Турнір запущено."
 }

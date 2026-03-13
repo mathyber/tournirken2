@@ -18,4 +18,5 @@ export enum TournamentFormat {
   ROUND_ROBIN = 'ROUND_ROBIN',
   SWISS = 'SWISS',
   MIXED = 'MIXED',
+  CUSTOM = 'CUSTOM',
 }

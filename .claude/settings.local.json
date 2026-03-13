@@ -81,7 +81,31 @@
       "Bash(curl -s \"http://localhost:3001/api/admin/tournaments?page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
       "Bash(__NEW_LINE_92415b8a0717fc00__ echo:*)",
       "Bash(curl -s \"http://localhost:3001/api/admin/users?search=admin&page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
-      "Bash(curl -s \"http://localhost:3001/api/admin/tournaments?search=vis5&page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")"
+      "Bash(curl -s \"http://localhost:3001/api/admin/tournaments?search=vis5&page=1&limit=5\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(node -e \"JSON.parse\\(require\\(''fs''\\).readFileSync\\(''apps/web/src/i18n/ru.json'',''utf8''\\)\\); console.log\\(''ru OK''\\)\")",
+      "Bash(node -e \"JSON.parse\\(require\\(''fs''\\).readFileSync\\(''apps/web/src/i18n/en.json'',''utf8''\\)\\); console.log\\(''en OK''\\)\")",
+      "Bash(node -e \"JSON.parse\\(require\\(''fs''\\).readFileSync\\(''apps/web/src/i18n/uk.json'',''utf8''\\)\\); console.log\\(''uk OK''\\)\")",
+      "Bash(\"/c/Program Files/nodejs/pnpm\" -r --filter \"./apps/web\" exec npx tsc --noEmit)",
+      "Bash(find /d/my-projects/claude-code/tournirken -name playwright.config*)",
+      "Bash(node qa-custom-view-mode.mjs)",
+      "Bash(grep -r \"viewSchema\\\\|openBuilder\\\\|viewOnlyBanner\\\\|viewTitle\\\\|builderTitle\" d:/my-projects/claude-code/tournirken/apps/web/src --include=*.json -l)",
+      "Bash(node d:/my-projects/claude-code/tournirken/qa-custom-view-draft.mjs)",
+      "Bash(node d:/my-projects/claude-code/tournirken/qa-drag-test.mjs)",
+      "Bash(curl -s http://localhost:3001/api/tournaments/196/participants)",
+      "Bash(python3 -m json.tool)",
+      "Bash(timeout 15 npx tsx src/index.ts)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''accessToken'''',''''ERROR:''''+str\\(d\\)\\)\\)\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzQwMzIzOCwiZXhwIjoxNzczNDA0MTM4fQ.LHv2HgtuhJzwwRN-Ze5IUdR1Rf1lbRGe4adHHJb1H7k\" T1_ID=200 __NEW_LINE_82ca4c2a02535192__ curl -s \"http://localhost:3001/api/tournaments/$T1_ID/matches\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(python3 -c \":*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzQwMzIzOCwiZXhwIjoxNzczNDA0MTM4fQ.LHv2HgtuhJzwwRN-Ze5IUdR1Rf1lbRGe4adHHJb1H7k\" T=202 __NEW_LINE_ce831a6bcc0de088__ curl -s \"http://localhost:3001/api/tournaments/$T/matches\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzQwMzIzOCwiZXhwIjoxNzczNDA0MTM4fQ.LHv2HgtuhJzwwRN-Ze5IUdR1Rf1lbRGe4adHHJb1H7k\" T=203 __NEW_LINE_687e06359263abf6__ curl -s \"http://localhost:3001/api/tournaments/$T\" -H \"Authorization: Bearer $TOKEN\")",
+      "Read(//d/my-projects/claude-code/tournirken/apps/web/src/routes/tournaments/**)",
+      "Bash(ls /d/my-projects/claude-code/tournirken/apps/web/playwright*)",
+      "Bash(ls /d/my-projects/claude-code/tournirken/playwright*)",
+      "Read(//d/d/my-projects/claude-code/tournirken/**)",
+      "Read(//d/my-projects/claude-code/tournirken/apps/api/src/routes/**)",
+      "Bash(rm /d/my-projects/claude-code/tournirken/pw-screenshot.cjs)",
+      "Bash(rm /d/my-projects/claude-code/tournirken/test4-*.png)"
     ]
   }
 }

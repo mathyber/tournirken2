@@ -114,7 +114,7 @@ export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
     registrationEnd?: Date | null | undefined;
     swissRounds?: number | undefined;
 }>;
-export declare const UpdateTournamentSchema: z.ZodObject<{
+export declare const UpdateTournamentSchema: z.ZodEffects<z.ZodObject<{
     tournamentName: z.ZodOptional<z.ZodString>;
     gameName: z.ZodOptional<z.ZodString>;
     season: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
@@ -127,6 +127,30 @@ export declare const UpdateTournamentSchema: z.ZodObject<{
     registrationEnd: z.ZodOptional<z.ZodNullable<z.ZodOptional<z.ZodDate>>>;
     swissRounds: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
 }, "strip", z.ZodTypeAny, {
+    info?: string | undefined;
+    tournamentName?: string | undefined;
+    gameName?: string | undefined;
+    season?: number | undefined;
+    logo?: string | undefined;
+    maxParticipants?: number | undefined;
+    onlyOrganizerSetsResults?: boolean | undefined;
+    format?: TournamentFormat | undefined;
+    registrationStart?: Date | null | undefined;
+    registrationEnd?: Date | null | undefined;
+    swissRounds?: number | undefined;
+}, {
+    info?: string | undefined;
+    tournamentName?: string | undefined;
+    gameName?: string | undefined;
+    season?: number | undefined;
+    logo?: string | undefined;
+    maxParticipants?: number | undefined;
+    onlyOrganizerSetsResults?: boolean | undefined;
+    format?: TournamentFormat | undefined;
+    registrationStart?: Date | null | undefined;
+    registrationEnd?: Date | null | undefined;
+    swissRounds?: number | undefined;
+}>, {
     info?: string | undefined;
     tournamentName?: string | undefined;
     gameName?: string | undefined;

@@ -15,5 +15,6 @@ export declare enum TournamentFormat {
     DOUBLE_ELIMINATION = "DOUBLE_ELIMINATION",
     ROUND_ROBIN = "ROUND_ROBIN",
     SWISS = "SWISS",
-    MIXED = "MIXED"
+    MIXED = "MIXED",
+    CUSTOM = "CUSTOM"
 }

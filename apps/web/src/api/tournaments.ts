@@ -39,6 +39,15 @@ export const tournamentsApi = {
 
   fillRandom: (id: number) =>
     api.post(`/tournaments/${id}/fill-random`).then((r) => r.data),
+
+  getCustomSchema: (id: number) =>
+    api.get(`/tournaments/${id}/custom-schema`).then((r) => r.data),
+
+  saveCustomSchema: (id: number, nodes: any[], edges: any[]) =>
+    api.post(`/tournaments/${id}/custom-schema`, { nodes, edges }).then((r) => r.data),
+
+  finalizeCustom: (id: number) =>
+    api.post(`/tournaments/${id}/custom-finalize`).then((r) => r.data),
 };
 
 export const gamesApi = {

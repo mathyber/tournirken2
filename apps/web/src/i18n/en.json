@@ -331,5 +331,30 @@
   "guide.profile.title": "Profile & statistics",
   "guide.profile.screenshot": "Profile page",
   "guide.profile.screenshotCaption": "User profile: tournament statistics, email and password change",
-  "guide.profile.desc": "The profile shows participation statistics: number of tournaments, wins, second places, and organized events. You can also change your email and password."
+  "guide.profile.desc": "The profile shows participation statistics: number of tournaments, wins, second places, and organized events. You can also change your email and password.",
+
+  "format.CUSTOM": "Custom",
+  "format.CUSTOM_short": "Custom",
+  "format.CUSTOM_desc": "Build the tournament bracket manually using a visual drag-and-drop builder.",
+
+  "custom.openBuilder": "Open builder",
+  "custom.builderTitle": "Bracket builder",
+  "custom.saveSchema": "Save schema",
+  "custom.schemaSaved": "Schema saved",
+  "custom.addNode": "Add node",
+  "custom.addMatch": "+ Match",
+  "custom.addGroup": "+ Group",
+  "custom.addParticipant": "+ Participant",
+  "custom.addFinal": "+ Winner",
+  "custom.legend": "Legend",
+  "custom.winnerEdge": "Winner",
+  "custom.loserEdge": "Loser",
+  "custom.participantEdge": "Participant",
+  "custom.handles": "Tip",
+  "custom.handlesDesc": "Green handle = winner, red = loser. Drag from a handle to an input slot on another node.",
+  "custom.validationErrors": "errors",
+  "custom.validationTitle": "Validation errors",
+  "custom.viewSchema": "View schema",
+  "custom.viewTitle": "Tournament schema",
+  "custom.viewOnlyBanner": "View only — read-only mode. Tournament is active."
 }

@@ -595,7 +595,7 @@ function buildSingleEliminationBracket(participants: number[], totalSlots: numbe
   return seeds.map((s) => (s <= participants.length ? participants[s - 1] : null));
 }
 
-function buildRoundRobinSchedule(participants: number[]): [number, number][][] {
+export function buildRoundRobinSchedule(participants: number[]): [number, number][][] {
   const n = participants.length;
   const rounds: [number, number][][] = [];
   const list = [...participants];

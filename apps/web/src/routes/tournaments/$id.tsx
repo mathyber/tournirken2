@@ -181,7 +181,19 @@ function TournamentPage() {
               )
             )}
 
-            {(tournament.status === 'ACTIVE' || tournament.status === 'FINISHED') && (
+            {isOrganizer && tournament.format === 'CUSTOM' && ['DRAFT', 'REGISTRATION'].includes(tournament.status) && (
+              <Link to="/tournaments/$id/custom-builder" params={{ id }}>
+                <Button variant="outline" className="gap-2"><GitBranch className="h-4 w-4" />{t('custom.openBuilder')}</Button>
+              </Link>
+            )}
+
+            {tournament.format === 'CUSTOM' && (tournament.status === 'ACTIVE' || tournament.status === 'FINISHED') && (
+              <Link to="/tournaments/$id/custom-builder" params={{ id }}>
+                <Button variant="outline" className="gap-2"><Trophy className="h-4 w-4" />{t('custom.viewSchema')}</Button>
+              </Link>
+            )}
+
+            {tournament.format !== 'CUSTOM' && (tournament.status === 'ACTIVE' || tournament.status === 'FINISHED') && (
               <Link to="/tournaments/$id/bracket" params={{ id }}>
                 <Button variant="outline" className="gap-2"><Trophy className="h-4 w-4" />{t('tournament.bracketBtn')}</Button>
               </Link>

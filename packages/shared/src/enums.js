@@ -22,5 +22,6 @@ var TournamentFormat;
     TournamentFormat["ROUND_ROBIN"] = "ROUND_ROBIN";
     TournamentFormat["SWISS"] = "SWISS";
     TournamentFormat["MIXED"] = "MIXED";
+    TournamentFormat["CUSTOM"] = "CUSTOM";
 })(TournamentFormat || (exports.TournamentFormat = TournamentFormat = {}));
 //# sourceMappingURL=enums.js.map

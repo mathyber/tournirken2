@@ -70,6 +70,7 @@ model Tournament {
   tournamentEnd             DateTime?
   gridJson                  String?
   swissRounds               Int?
+  customSchema              String?
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 

@@ -331,5 +331,30 @@
   "guide.profile.title": "Профіль і статыстыка",
   "guide.profile.screenshot": "Старонка профілю",
   "guide.profile.screenshotCaption": "Профіль карыстальніка: статыстыка турніраў, змена email і пароля",
-  "guide.profile.desc": "У профілі адлюстроўваецца статыстыка ўдзелу: колькасць турніраў, перамог, другіх месцаў і арганізаваных спаборніцтваў. Таксама можна змяніць email і пароль."
+  "guide.profile.desc": "У профілі адлюстроўваецца статыстыка ўдзелу: колькасць турніраў, перамог, другіх месцаў і арганізаваных спаборніцтваў. Таксама можна змяніць email і пароль.",
+
+  "format.CUSTOM": "Кастомны",
+  "format.CUSTOM_short": "Кастомны",
+  "format.CUSTOM_desc": "Стварыце сетку турніру ўручную з дапамогай візуальнага канструктара перацягвання.",
+
+  "custom.openBuilder": "Адкрыць канструктар",
+  "custom.builderTitle": "Канструктар сеткі",
+  "custom.saveSchema": "Захаваць схему",
+  "custom.schemaSaved": "Схема захавана",
+  "custom.addNode": "Дадаць вузел",
+  "custom.addMatch": "+ Матч",
+  "custom.addGroup": "+ Група",
+  "custom.addParticipant": "+ Удзельнік",
+  "custom.addFinal": "+ Пераможца",
+  "custom.legend": "Абазначэнні",
+  "custom.winnerEdge": "Пераможца",
+  "custom.loserEdge": "Прайграўшы",
+  "custom.participantEdge": "Удзельнік",
+  "custom.handles": "Падказка",
+  "custom.handlesDesc": "Зялёная кропка = пераможца, чырвоная = прайграўшы. Перацягніце з кропкі на ўваходны слот іншага вузла.",
+  "custom.validationErrors": "памылак",
+  "custom.validationTitle": "Памылкі валідацыі",
+  "custom.viewSchema": "Паглядзець схему",
+  "custom.viewTitle": "Схема турніру",
+  "custom.viewOnlyBanner": "Прагляд схемы — толькі чытанне. Турнір запушчаны."
 }

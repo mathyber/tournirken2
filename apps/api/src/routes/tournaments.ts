@@ -7,6 +7,25 @@ import {
   UpdateTournamentSchema,
   TournamentFiltersSchema,
 } from '@tournirken/shared';
+import { buildRoundRobinSchedule } from '../services/brackets';
+
+/**
+ * Parse a ReactFlow handle id like "input-1" or "input-2" into a 1-indexed slot number.
+ * The frontend uses 1-indexed handles (input-1 = slot 1, input-2 = slot 2).
+ * If the handle is 0-indexed (input-0 = slot 1), we convert it correctly.
+ * Falls back to slot 1 for any unrecognised input.
+ */
+function parseInputSlot(handle: string | null | undefined): number {
+  if (!handle) return 1;
+  const num = parseInt(handle.replace(/[^0-9]/g, ''));
+  if (isNaN(num)) return 1;
+  // 0-indexed: 0 → slot 1, 1 → slot 2
+  // 1-indexed: 1 → slot 1, 2 → slot 2
+  // The frontend uses 1-indexed, but we handle both safely:
+  // If num is 0, it must be 0-indexed first slot → slot 1.
+  // Otherwise keep num as-is (1 stays 1, 2 stays 2).
+  return num === 0 ? 1 : num;
+}
 
 const TOURNAMENT_INCLUDE = {
   tournamentName: { include: { game: true } },
@@ -34,6 +53,7 @@ function formatTournament(t: any) {
     tournamentEnd: t.tournamentEnd,
     gridJson: t.gridJson,
     swissRounds: t.swissRounds,
+    customSchema: t.customSchema,
     createdAt: t.createdAt,
   };
 }
@@ -477,6 +497,298 @@ if (!id) return badRequest(reply, 'Неверный ID');
     });
 
     return reply.send(groupsWithStandings);
+  });
+
+  // POST /api/tournaments/:id/custom-schema
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/custom-schema',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const id = parseId(request.params.id);
+      if (!id) return badRequest(reply, 'Неверный ID');
+
+      const tournament = await prisma.tournament.findUnique({ where: { id } });
+      if (!tournament) return notFound(reply, 'Турнир не найден');
+
+      const isOrganizer = tournament.organizerId === request.userId;
+      const isAdmin = request.userRoles?.includes('ADMIN') || request.userRoles?.includes('MODERATOR');
+      if (!isOrganizer && !isAdmin) return forbidden(reply);
+
+      if (tournament.format !== 'CUSTOM') {
+        return badRequest(reply, 'Эта операция доступна только для турниров формата CUSTOM');
+      }
+      if (!['DRAFT', 'REGISTRATION'].includes(tournament.status)) {
+        return badRequest(reply, 'Схему можно сохранять только в статусах DRAFT и REGISTRATION');
+      }
+
+      const { nodes, edges } = request.body as { nodes: any[]; edges: any[] };
+      if (!Array.isArray(nodes) || !Array.isArray(edges)) {
+        return badRequest(reply, 'Необходимо передать nodes и edges');
+      }
+
+      const schemaJson = JSON.stringify({ nodes, edges });
+      const updated = await prisma.tournament.update({
+        where: { id },
+        data: { customSchema: schemaJson },
+        include: TOURNAMENT_INCLUDE,
+      });
+
+      return reply.send({ ...formatTournament(updated), customSchema: schemaJson });
+    }
+  );
+
+  // POST /api/tournaments/:id/custom-finalize
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/custom-finalize',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const id = parseId(request.params.id);
+      if (!id) return badRequest(reply, 'Неверный ID');
+
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: { participants: { include: { user: { select: { id: true, login: true } } } } },
+      });
+      if (!tournament) return notFound(reply, 'Турнир не найден');
+
+      const isOrganizer = tournament.organizerId === request.userId;
+      const isAdmin = request.userRoles?.includes('ADMIN') || request.userRoles?.includes('MODERATOR');
+      if (!isOrganizer && !isAdmin) return forbidden(reply);
+
+      if (tournament.format !== 'CUSTOM') {
+        return badRequest(reply, 'Эта операция доступна только для турниров формата CUSTOM');
+      }
+      if (!tournament.customSchema) {
+        return badRequest(reply, 'Сначала сохраните схему турнира');
+      }
+      if (tournament.status === 'ACTIVE' || tournament.status === 'FINISHED') {
+        return badRequest(reply, 'Турнир уже запущен');
+      }
+
+      const { nodes, edges } = JSON.parse(tournament.customSchema);
+
+      const matchNodes = nodes.filter((n: any) => n.type === 'match');
+      const groupNodes = nodes.filter((n: any) => n.type === 'group');
+      const finalNodes = nodes.filter((n: any) => n.type === 'final');
+      if (matchNodes.length === 0) {
+        return reply.status(400).send({ error: 'Схема должна содержать хотя бы один матч' });
+      }
+      if (finalNodes.length === 0) {
+        return reply.status(400).send({ error: 'Схема должна содержать узел «Победитель»' });
+      }
+
+      const participants = tournament.participants;
+      // Shuffle participants for random seeding
+      const shuffled = [...participants].sort(() => Math.random() - 0.5);
+      const startNodes = nodes.filter((n: any) => n.type === 'start');
+
+      // Create a Stage for CUSTOM matches
+      const stage = await prisma.stage.upsert({
+        where: { name: 'Кастомная сетка' },
+        update: {},
+        create: { name: 'Кастомная сетка' },
+      });
+
+      // Create a Stage for CUSTOM group-stage matches
+      const groupStage = groupNodes.length > 0
+        ? await prisma.stage.upsert({
+            where: { name: 'Кастомный групповой этап' },
+            update: {},
+            create: { name: 'Кастомный групповой этап' },
+          })
+        : null;
+
+      // Map nodeId -> DB matchId for MatchNodes
+      const nodeIdToMatchId = new Map<string, number>();
+      // Map nodeId -> DB groupId for GroupNodes
+      const nodeIdToGroupId = new Map<string, number>();
+
+      // ── Step 1: Create MatchNode records (without links yet) ───────────────
+      for (const mn of matchNodes as any[]) {
+        const match = await prisma.match.create({
+          data: {
+            tournamentId: id,
+            stageId: stage.id,
+            roundNumber: mn.data?.round ?? 1,
+          },
+        });
+        nodeIdToMatchId.set(mn.id, match.id);
+      }
+
+      // ── Step 2: Create TournamentGroup + GroupParticipant + GroupMatch records ──
+      // For each GroupNode, gather which StartNode participants connect to it (via
+      // participant-type edges), create the group, assign members, and generate
+      // round-robin matches between all group members.
+      for (const gn of groupNodes as any[]) {
+        const groupSize: number = gn.data?.size ?? 4;
+
+        // Collect the input slots that StartNodes connect to this group, ordered by slot number.
+        // Edges from StartNodes to GroupNode have edgeType 'participant' and targetHandle 'input-N'.
+        const inputEdges = edges
+          .filter((e: any) => e.target === gn.id && e.data?.edgeType === 'participant')
+          .sort((a: any, b: any) => {
+            const slotA = parseInt((a.targetHandle ?? 'input-1').replace('input-', '')) || 1;
+            const slotB = parseInt((b.targetHandle ?? 'input-1').replace('input-', '')) || 1;
+            return slotA - slotB;
+          });
+
+        // Build ordered list of participant IDs for this group's slots.
+        // Each inputEdge.source is a StartNode ID; map it to a shuffled participant.
+        // We track which shuffled participant index has been consumed globally.
+        const groupParticipantIds: number[] = [];
+        for (const ie of inputEdges) {
+          // Find which slot/index this StartNode occupies among all startNodes
+          const snIdx = startNodes.findIndex((sn: any) => sn.id === ie.source);
+          if (snIdx !== -1 && snIdx < shuffled.length) {
+            groupParticipantIds.push(shuffled[snIdx].id);
+          }
+        }
+
+        // Create TournamentGroup
+        const group = await prisma.tournamentGroup.create({
+          data: {
+            tournamentId: id,
+            name: gn.data?.label ?? `Группа`,
+          },
+        });
+        nodeIdToGroupId.set(gn.id, group.id);
+
+        // Assign participants to the group
+        for (const participantId of groupParticipantIds) {
+          await prisma.groupParticipant.create({
+            data: { groupId: group.id, participantId },
+          });
+        }
+
+        // Generate round-robin matches between all participants in this group
+        if (groupParticipantIds.length >= 2) {
+          const schedule = buildRoundRobinSchedule(groupParticipantIds);
+          for (let roundIdx = 0; roundIdx < schedule.length; roundIdx++) {
+            for (const [p1, p2] of schedule[roundIdx]) {
+              await prisma.match.create({
+                data: {
+                  tournamentId: id,
+                  stageId: groupStage!.id,
+                  groupId: group.id,
+                  roundNumber: roundIdx + 1,
+                  player1Id: p1,
+                  player2Id: p2,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // ── Step 3: Wire match-to-match edges (winner/loser advancement) ────────
+      // React Flow stores render type (e.g. 'smoothstep') in edge.type;
+      // the actual winner/loser type is stored in edge.data.edgeType.
+      const winnerLoserEdges = edges.filter(
+        (e: any) => e.data?.edgeType === 'winner' || e.type === 'winner' || e.data?.edgeType === 'loser' || e.type === 'loser'
+      );
+      for (const edge of winnerLoserEdges) {
+        const sourceMatchDbId = nodeIdToMatchId.get(edge.source);
+        const targetMatchDbId = nodeIdToMatchId.get(edge.target);
+        if (!sourceMatchDbId || !targetMatchDbId) continue;
+
+        const slot = parseInputSlot(edge.targetHandle);
+        const resolvedEdgeType = edge.data?.edgeType ?? edge.type;
+        if (resolvedEdgeType === 'winner') {
+          await prisma.match.update({
+            where: { id: sourceMatchDbId },
+            data: { nextMatchId: targetMatchDbId, nextMatchSlot: slot },
+          });
+        } else if (resolvedEdgeType === 'loser') {
+          await prisma.match.update({
+            where: { id: sourceMatchDbId },
+            data: { loserNextMatchId: targetMatchDbId, loserNextMatchSlot: slot },
+          });
+        }
+      }
+
+      // ── Step 4: Assign StartNode participants to direct-match inputs ────────
+      // (Only applies for StartNodes that connect directly to a MatchNode, not a GroupNode)
+      for (let i = 0; i < startNodes.length && i < shuffled.length; i++) {
+        const startNode = startNodes[i];
+        const participant = shuffled[i];
+
+        const outEdge = edges.find((e: any) => e.source === startNode.id);
+        if (!outEdge) continue;
+
+        // Skip if the target is a GroupNode (handled in Step 2)
+        if (nodeIdToGroupId.has(outEdge.target)) continue;
+
+        const targetMatchDbId = nodeIdToMatchId.get(outEdge.target);
+        if (!targetMatchDbId) continue;
+
+        const slot = parseInputSlot(outEdge.targetHandle);
+        const updateData: any = slot === 1
+          ? { player1Id: participant.id }
+          : { player2Id: participant.id };
+
+        await prisma.match.update({ where: { id: targetMatchDbId }, data: updateData });
+      }
+
+      // ── Step 5: Build customGroupOutputs metadata for group→match wiring ───
+      // When a group finishes, the match handler needs to know which rank-N output
+      // connects to which match input slot. Store this as:
+      //   customGroupOutputs: { "<groupDbId>-<rank>": { matchId, slot } }
+      // Also store customNodeMap: { "<nodeId>": matchDbId } for the view layer.
+      const customGroupOutputs: Record<string, { matchId: number; slot: number }> = {};
+
+      // Rank edges from GroupNode outputs (sourceHandle: 'rank-N') to MatchNode inputs
+      const rankEdges = edges.filter(
+        (e: any) => e.source && nodeIdToGroupId.has(e.source) &&
+                    typeof e.sourceHandle === 'string' && e.sourceHandle.startsWith('rank-')
+      );
+      for (const edge of rankEdges) {
+        const groupDbId = nodeIdToGroupId.get(edge.source);
+        const targetMatchDbId = nodeIdToMatchId.get(edge.target);
+        if (!groupDbId || !targetMatchDbId) continue;
+        const rankNum = parseInt(edge.sourceHandle.replace('rank-', ''));
+        const rank = isNaN(rankNum) ? 1 : (rankNum === 0 ? 1 : rankNum);
+        const slot = parseInputSlot(edge.targetHandle);
+        customGroupOutputs[`${groupDbId}-${rank}`] = { matchId: targetMatchDbId, slot };
+      }
+
+      // customNodeMap: nodeId → DB matchId (for the view to map nodes to real matches)
+      const customNodeMap: Record<string, number> = {};
+      for (const [nodeId, matchId] of nodeIdToMatchId.entries()) {
+        customNodeMap[nodeId] = matchId;
+      }
+
+      // Persist metadata in gridJson
+      const gridMeta: any = {
+        customGroupOutputs,
+        customNodeMap,
+      };
+      if (Object.keys(customGroupOutputs).length > 0) {
+        gridMeta.hasCustomGroups = true;
+      }
+
+      // Update tournament status to ACTIVE
+      await prisma.tournament.update({
+        where: { id },
+        data: { status: 'ACTIVE', gridJson: JSON.stringify(gridMeta) },
+      });
+
+      return reply.send({ success: true, matchCount: matchNodes.length, groupCount: groupNodes.length });
+    }
+  );
+
+  // GET /api/tournaments/:id/custom-schema
+  fastify.get<{ Params: { id: string } }>('/:id/custom-schema', async (request, reply) => {
+    const id = parseId(request.params.id);
+    if (!id) return badRequest(reply, 'Неверный ID');
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id },
+      select: { customSchema: true, format: true },
+    });
+    if (!tournament) return notFound(reply, 'Турнир не найден');
+    if (tournament.format !== 'CUSTOM') return badRequest(reply, 'Не кастомный турнир');
+
+    return reply.send({ customSchema: tournament.customSchema });
   });
 
   // GET /api/tournaments/:id/grid

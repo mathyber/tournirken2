@@ -41,7 +41,7 @@ exports.CreateTournamentSchema = zod_1.z.object({
     registrationEnd: zod_1.z.coerce.date().optional().nullable(),
     swissRounds: zod_1.z.number().int().min(1).max(20).optional(),
 }).refine((data) => data.format !== 'SWISS' || (data.swissRounds !== undefined && data.swissRounds !== null), { message: 'Для формата Swiss укажите количество раундов', path: ['swissRounds'] });
-exports.UpdateTournamentSchema = exports.CreateTournamentSchema.innerType().partial();
+exports.UpdateTournamentSchema = exports.CreateTournamentSchema.innerType().partial().refine((data) => !data.format || data.format !== 'SWISS' || data.swissRounds !== undefined, { message: 'Для формата Swiss укажите количество раундов', path: ['swissRounds'] });
 exports.TournamentFiltersSchema = zod_1.z.object({
     page: zod_1.z.coerce.number().int().positive().default(1),
     limit: zod_1.z.coerce.number().int().min(1).max(100).default(20),

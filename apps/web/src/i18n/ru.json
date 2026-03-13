@@ -331,5 +331,30 @@
   "guide.profile.title": "Профиль и статистика",
   "guide.profile.screenshot": "Страница профиля",
   "guide.profile.screenshotCaption": "Профиль пользователя: статистика турниров, смена email и пароля",
-  "guide.profile.desc": "В профиле отображается статистика участий: количество турниров, побед, вторых мест и организованных соревнований. Также можно изменить email и пароль."
+  "guide.profile.desc": "В профиле отображается статистика участий: количество турниров, побед, вторых мест и организованных соревнований. Также можно изменить email и пароль.",
+
+  "format.CUSTOM": "Кастомный",
+  "format.CUSTOM_short": "Кастомный",
+  "format.CUSTOM_desc": "Создайте сетку турнира вручную с помощью визуального конструктора. Перетаскивайте узлы и соединяйте их.",
+
+  "custom.openBuilder": "Открыть конструктор",
+  "custom.builderTitle": "Конструктор сетки",
+  "custom.saveSchema": "Сохранить схему",
+  "custom.schemaSaved": "Схема сохранена",
+  "custom.addNode": "Добавить узел",
+  "custom.addMatch": "+ Матч",
+  "custom.addGroup": "+ Группа",
+  "custom.addParticipant": "+ Участник",
+  "custom.addFinal": "+ Победитель",
+  "custom.legend": "Обозначения",
+  "custom.winnerEdge": "Победитель",
+  "custom.loserEdge": "Проигравший",
+  "custom.participantEdge": "Участник",
+  "custom.handles": "Подсказка",
+  "custom.handlesDesc": "Зелёная точка = победитель, красная = проигравший. Перетащите из точки на входной слот другого узла.",
+  "custom.validationErrors": "ошибок",
+  "custom.validationTitle": "Ошибки валидации",
+  "custom.viewSchema": "Посмотреть схему",
+  "custom.viewTitle": "Схема турнира",
+  "custom.viewOnlyBanner": "Просмотр схемы — только чтение. Турнир запущен."
 }

@@ -171,7 +171,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
 
         // Elimination / Mixed playoff final: no next match, not a group-stage match
         if (!fullMatch?.nextMatchId && !match.groupId &&
-            ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED'].includes(format)) {
+            ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED', 'CUSTOM'].includes(format)) {
 
           // ── Double Elimination: Grand Final Reset check ──────────────────
           // In DE, player1 comes from WB (0 losses), player2 comes from LB (1 loss).
@@ -310,6 +310,11 @@ if (!id) return badRequest(reply, 'Неверный ID');
         if (tournament?.format === 'MIXED' && match.groupId) {
           await checkAndGenerateMixedPlayoff(tournament.id, tournament.participants.map(p => p.id));
         }
+
+        // CUSTOM format: check if all matches in the group are done → advance ranked participants
+        if (tournament?.format === 'CUSTOM' && match.groupId) {
+          await checkAndAdvanceCustomGroupOutputs(tournament.id, match.groupId);
+        }
       }
 
       const updatedMatch = await prisma.match.findUnique({ where: { id }, include: MATCH_INCLUDE });
@@ -416,4 +421,64 @@ function computeGroupStandings(group: any) {
   return Object.values(stats).sort((a, b) =>
     b.points - a.points || b.gd - a.gd || b.gf - a.gf
   );
+}
+
+// ── CUSTOM format: advance group-ranked participants to the next match ──────
+async function checkAndAdvanceCustomGroupOutputs(tournamentId: number, groupId: number) {
+  // Load tournament gridJson to get customGroupOutputs mapping
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { gridJson: true },
+  });
+  if (!tournament?.gridJson) return;
+
+  let meta: any;
+  try { meta = JSON.parse(tournament.gridJson); } catch { return; }
+  if (!meta.hasCustomGroups || !meta.customGroupOutputs) return;
+
+  // Check if all matches in this specific group are finished
+  const groupMatches = await prisma.match.findMany({
+    where: { tournamentId, groupId },
+  });
+  if (groupMatches.length === 0) return;
+  const allDone = groupMatches.every((m) => m.isFinished);
+  if (!allDone) return;
+
+  // Mark the group as finished
+  await prisma.tournamentGroup.update({
+    where: { id: groupId },
+    data: { isFinished: true },
+  });
+
+  // Compute standings for this group
+  const group = await prisma.tournamentGroup.findUnique({
+    where: { id: groupId },
+    include: {
+      matches: { include: { results: { where: { isAccepted: true }, take: 1 } } },
+      participants: { include: { participant: true } },
+    },
+  });
+  if (!group) return;
+
+  const standings = computeGroupStandings(group);
+
+  // For each rank-N output wired in customGroupOutputs, advance the participant
+  const outputs: Record<string, { matchId: number; slot: number }> = meta.customGroupOutputs;
+  for (let rank = 1; rank <= standings.length; rank++) {
+    const key = `${groupId}-${rank}`;
+    const target = outputs[key];
+    if (!target) continue;
+
+    const participantId = standings[rank - 1]?.participantId;
+    if (!participantId) continue;
+
+    const updateData: any = target.slot === 1
+      ? { player1Id: participantId }
+      : { player2Id: participantId };
+
+    await prisma.match.update({
+      where: { id: target.matchId },
+      data: updateData,
+    });
+  }
 }

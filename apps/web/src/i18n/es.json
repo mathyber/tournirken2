@@ -331,5 +331,30 @@
   "guide.profile.title": "Perfil y estadísticas",
   "guide.profile.screenshot": "Página de perfil",
   "guide.profile.screenshotCaption": "Perfil de usuario: estadísticas de torneos, cambio de email y contraseña",
-  "guide.profile.desc": "El perfil muestra estadísticas de participación: número de torneos, victorias, segundos puestos y eventos organizados. También puedes cambiar tu email y contraseña."
+  "guide.profile.desc": "El perfil muestra estadísticas de participación: número de torneos, victorias, segundos puestos y eventos organizados. También puedes cambiar tu email y contraseña.",
+
+  "format.CUSTOM": "Personalizado",
+  "format.CUSTOM_short": "Personalizado",
+  "format.CUSTOM_desc": "Crea el bracket del torneo manualmente con el constructor visual de arrastrar y soltar.",
+
+  "custom.openBuilder": "Abrir constructor",
+  "custom.builderTitle": "Constructor de bracket",
+  "custom.saveSchema": "Guardar esquema",
+  "custom.schemaSaved": "Esquema guardado",
+  "custom.addNode": "Añadir nodo",
+  "custom.addMatch": "+ Partida",
+  "custom.addGroup": "+ Grupo",
+  "custom.addParticipant": "+ Participante",
+  "custom.addFinal": "+ Ganador",
+  "custom.legend": "Leyenda",
+  "custom.winnerEdge": "Ganador",
+  "custom.loserEdge": "Perdedor",
+  "custom.participantEdge": "Participante",
+  "custom.handles": "Ayuda",
+  "custom.handlesDesc": "Punto verde = ganador, rojo = perdedor. Arrastra desde un punto al slot de entrada de otro nodo.",
+  "custom.validationErrors": "errores",
+  "custom.validationTitle": "Errores de validación",
+  "custom.viewSchema": "Ver esquema",
+  "custom.viewTitle": "Esquema del torneo",
+  "custom.viewOnlyBanner": "Solo lectura. El torneo está activo."
 }
