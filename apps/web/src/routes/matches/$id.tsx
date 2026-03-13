@@ -28,10 +28,11 @@ function MatchPage() {
   const dateLocale = i18n.language.startsWith('en') ? enUS : ru;
   const matchId = parseInt(id);
 
-  const { data: match, isLoading } = useQuery({
+  const { data: match, isLoading, isError } = useQuery({
     queryKey: ['match', matchId],
     queryFn: () => matchesApi.get(matchId),
     refetchInterval: (query) => query.state.data?.isFinished ? false : 5000,
+    retry: false,
   });
 
   const [score1, setScore1] = useState('0');
@@ -65,7 +66,7 @@ function MatchPage() {
   });
 
   if (isLoading) return <div className="animate-pulse h-64 bg-muted rounded-lg" />;
-  if (!match) return <div className="text-center py-16 text-muted-foreground">{t('match.notFound')}</div>;
+  if (isError || !match) return <div className="text-center py-16 text-muted-foreground">{t('match.notFound')}</div>;
 
   const confirmedResult = match.results?.find((r: any) => r.isFinal);
   const isOrganizer = match.tournament?.organizerId === user?.id || isAdmin() || isModerator();

@@ -98,6 +98,22 @@ export async function generateDoubleElimination(
   participantIds: number[],
 ) {
   const n = participantIds.length;
+
+  // ── Degenerate case: 2 players → single Grand Final, no losers bracket ────
+  if (n === 2) {
+    const grandFinalStage = await ensureStage('Гранд-финал');
+    await prisma.match.create({
+      data: {
+        tournamentId,
+        stageId: grandFinalStage.id,
+        roundNumber: 1,
+        player1Id: participantIds[0],
+        player2Id: participantIds[1],
+      },
+    });
+    return;
+  }
+
   const rounds = Math.ceil(Math.log2(n));
   const totalSlots = Math.pow(2, rounds);
   const seeded = buildSingleEliminationBracket(participantIds, totalSlots);

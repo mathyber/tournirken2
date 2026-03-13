@@ -172,28 +172,82 @@ if (!id) return badRequest(reply, 'Неверный ID');
         // Elimination / Mixed playoff final: no next match, not a group-stage match
         if (!fullMatch?.nextMatchId && !match.groupId &&
             ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED'].includes(format)) {
-          if (finalWinnerId) {
-            await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
-          }
-          const finalLoserId = finalWinnerId === match.player1Id ? match.player2Id : match.player1Id;
-          if (finalLoserId) {
-            await prisma.tournamentParticipant.update({ where: { id: finalLoserId }, data: { finalResult: '2' } });
-          }
-          // 3rd place: losers of the two semi-final matches that fed into this one
-          const semis = await prisma.match.findMany({ where: { nextMatchId: id, isFinished: true } });
-          for (const sf of semis) {
-            const sfLoser = sf.winnerId === sf.player1Id ? sf.player2Id : sf.player1Id;
-            if (sfLoser) {
-              await prisma.tournamentParticipant.updateMany({
-                where: { id: sfLoser, finalResult: null },
-                data: { finalResult: '3' },
+
+          // ── Double Elimination: Grand Final Reset check ──────────────────
+          // In DE, player1 comes from WB (0 losses), player2 comes from LB (1 loss).
+          // If player2 (LB finalist) wins the GF, the WB finalist still has only 1 loss
+          // and we must play a reset match. Only finish tournament if WB finalist won,
+          // OR if this match is already a GF reset (gridJson has grandFinalResetMatchId).
+          if (format === 'DOUBLE_ELIMINATION') {
+            const tourney = await prisma.tournament.findUnique({
+              where: { id: match.tournament.id },
+              select: { gridJson: true },
+            });
+            let meta: any = {};
+            try { meta = tourney?.gridJson ? JSON.parse(tourney.gridJson) : {}; } catch { /* ignore */ }
+
+            const isResetMatch = meta.grandFinalResetMatchId === id;
+            const lbFinalistWon = finalWinnerId === match.player2Id; // player2 is LB finalist
+
+            if (!isResetMatch && lbFinalistWon) {
+              // LB finalist won the GF — create a Grand Final Reset match
+              const grandFinalStage = await prisma.stage.findFirst({ where: { name: 'Гранд-финал' } });
+              if (grandFinalStage) {
+                const resetMatch = await prisma.match.create({
+                  data: {
+                    tournamentId: match.tournament.id,
+                    stageId: grandFinalStage.id,
+                    roundNumber: (fullMatch?.roundNumber ?? 1) + 1,
+                    player1Id: match.player1Id, // WB finalist
+                    player2Id: match.player2Id, // LB finalist
+                  },
+                });
+                // Record the reset match ID so we know it's the final
+                await prisma.tournament.update({
+                  where: { id: match.tournament.id },
+                  data: { gridJson: JSON.stringify({ ...meta, grandFinalResetMatchId: resetMatch.id }) },
+                });
+              }
+              // Do NOT finish tournament yet — wait for the reset match
+            } else {
+              // WB finalist won GF (normal end) OR this is the reset match completing
+              if (finalWinnerId) {
+                await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
+              }
+              const finalLoserId = finalWinnerId === match.player1Id ? match.player2Id : match.player1Id;
+              if (finalLoserId) {
+                await prisma.tournamentParticipant.update({ where: { id: finalLoserId }, data: { finalResult: '2' } });
+              }
+              await prisma.tournament.update({
+                where: { id: match.tournament.id },
+                data: { status: 'FINISHED', tournamentEnd: new Date() },
               });
             }
+          } else {
+            // Single Elimination / Mixed
+            if (finalWinnerId) {
+              await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
+            }
+            const finalLoserId = finalWinnerId === match.player1Id ? match.player2Id : match.player1Id;
+            if (finalLoserId) {
+              await prisma.tournamentParticipant.update({ where: { id: finalLoserId }, data: { finalResult: '2' } });
+            }
+            // 3rd place: losers of the two semi-final matches that fed into this one
+            const semis = await prisma.match.findMany({ where: { nextMatchId: id, isFinished: true } });
+            for (const sf of semis) {
+              const sfLoser = sf.winnerId === sf.player1Id ? sf.player2Id : sf.player1Id;
+              if (sfLoser) {
+                await prisma.tournamentParticipant.updateMany({
+                  where: { id: sfLoser, finalResult: null },
+                  data: { finalResult: '3' },
+                });
+              }
+            }
+            await prisma.tournament.update({
+              where: { id: match.tournament.id },
+              data: { status: 'FINISHED', tournamentEnd: new Date() },
+            });
           }
-          await prisma.tournament.update({
-            where: { id: match.tournament.id },
-            data: { status: 'FINISHED', tournamentEnd: new Date() },
-          });
         }
 
         // Round Robin: check if all matches are now done

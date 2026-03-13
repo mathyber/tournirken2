@@ -15,7 +15,41 @@
       "Bash(node test-logo2.mjs)",
       "Bash(node test-logo3.mjs)",
       "Bash(node test-logo4.mjs)",
-      "Bash(node test-logo5.mjs)"
+      "Bash(node test-logo5.mjs)",
+      "Bash(node -e \"import\\(''playwright''\\).then\\(m => console.log\\(''playwright ok''\\)\\).catch\\(e => console.log\\(''missing playwright:'', e.message\\)\\)\")",
+      "Bash(curl -s http://localhost:3001/api/tournaments)",
+      "Bash(node qa-double-elim.mjs)",
+      "Bash(node test-double-elim.mjs)",
+      "Bash(node -e \":*)",
+      "Bash(find /d/my-projects/claude-code/tournirken/apps/web/src -name *.tsx)",
+      "Read(//d/my-projects/claude-code/tournirken/apps/web/src/routes/tournaments/**)",
+      "Read(//d/c/Users/mathyber/AppData/Local/Temp/qa-verify/**)",
+      "Bash(node check-bracket-ui.mjs)",
+      "Bash(node check-match-click.mjs)",
+      "Bash(node test-de-final.mjs)",
+      "Bash(ls /c/Users/mathyber/AppData/Local/Temp/qa-verify/screenshots/de/*.png)",
+      "Bash(find /tmp -name *.png)",
+      "Bash(node -e \"console.log\\(require\\(''os''\\).tmpdir\\(\\)\\)\")",
+      "Bash(Select-Object Name)",
+      "Bash(node find-ss.mjs)",
+      "Bash(node view-ss.mjs)",
+      "Bash(node copy-ss.mjs)",
+      "Bash(head -20 grep -n \"notFound\\\\|match\\\\.\" \"d:/my-projects/claude-code/tournirken/apps/web/src/i18n/be.json\")",
+      "Bash(head -20 grep -n \"notFound\\\\|match\\\\.\" \"d:/my-projects/claude-code/tournirken/apps/web/src/i18n/es.json\")",
+      "Bash(\"/c/Program Files/nodejs/pnpm\" --filter @tournirken/api exec tsc --noEmit)",
+      "Bash(\"/c/Program Files/nodejs/pnpm\" --filter @tournirken/web exec tsc --noEmit)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM4Mzc3OCwiZXhwIjoxNzczMzg0Njc4fQ.dlS7nSHk8kYh3WYTAqFEGKRdKuNU9c_BBfToP_Qe5Yw\")",
+      "Bash(T1_ID=162)",
+      "Bash(__NEW_LINE_04fbcea863e7726d__ echo:*)",
+      "Bash(curl -s http://localhost:3001/api/tournaments/$T1_ID/matches -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM4Mzc3OCwiZXhwIjoxNzczMzg0Njc4fQ.dlS7nSHk8kYh3WYTAqFEGKRdKuNU9c_BBfToP_Qe5Yw\" T2_ID=163 __NEW_LINE_928a978febb577f0__ echo \"=== All matches ===\" curl -s http://localhost:3001/api/tournaments/$T2_ID/matches -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM4Mzc3OCwiZXhwIjoxNzczMzg0Njc4fQ.dlS7nSHk8kYh3WYTAqFEGKRdKuNU9c_BBfToP_Qe5Yw\" T2_ID=163 __NEW_LINE_6cf3e33e242bb5db__ curl -s \"http://localhost:3001/api/tournaments/$T2_ID/matches\" -H \"Authorization: Bearer $TOKEN\")",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc3MzM4Mzc3OCwiZXhwIjoxNzczMzg0Njc4fQ.dlS7nSHk8kYh3WYTAqFEGKRdKuNU9c_BBfToP_Qe5Yw\" __NEW_LINE_ec1168a14ad83308__ curl -s \"http://localhost:3001/api/tournaments/163\" -H \"Authorization: Bearer $TOKEN\")",
+      "WebFetch(domain:localhost)",
+      "Bash(curl -s \"http://localhost:5173/matches/99999\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\mathyber\\AppData\\Local\\Temp\\qa-verify"
     ]
   }
 }
