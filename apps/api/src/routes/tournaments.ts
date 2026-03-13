@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { badRequest, forbidden, notFound, parseId } from '../lib/errors';
 import {
@@ -8,6 +9,10 @@ import {
   TournamentFiltersSchema,
 } from '@tournirken/shared';
 import { buildRoundRobinSchedule } from '../services/brackets';
+
+const CopyTournamentSchema = z.object({
+  newName: z.string().min(1),
+});
 
 /**
  * Parse a ReactFlow handle id like "input-1" or "input-2" into a 1-indexed slot number.
@@ -202,6 +207,10 @@ if (!id) return badRequest(reply, 'Неверный ID');
       const id = parseId(request.params.id);
       if (!id) return badRequest(reply, 'Неверный ID');
 
+      const result = CopyTournamentSchema.safeParse(request.body);
+      if (!result.success) return badRequest(reply, result.error.issues[0]?.message ?? 'Неверные данные');
+      const { newName } = result.data;
+
       const tournament = await prisma.tournament.findUnique({
         where: { id },
         include: { tournamentName: true },
@@ -213,20 +222,18 @@ if (!id) return badRequest(reply, 'Неверный ID');
 
       // Copy tournament, but strip participants, results and all date fields.
       // Keep basic settings + schema/grid if present.
-      const originalName = tournament.tournamentName?.name ?? 'Турнир';
-      const copyName = `Копия ${originalName}`;
 
       const game = await prisma.game.findUnique({ where: { id: tournament.tournamentName.gameId } });
       if (!game) return badRequest(reply, 'Игра не найдена');
 
       let copiedNameRecord = await prisma.tournamentName.findUnique({
-        where: { name_gameId_creatorId: { name: copyName, gameId: game.id, creatorId: request.userId! } },
+        where: { name_gameId_creatorId: { name: newName, gameId: game.id, creatorId: request.userId! } },
       });
       if (!copiedNameRecord) {
         copiedNameRecord = await prisma.tournamentName.create({
           data: {
-            name: copyName,
-            nameLower: copyName.toLowerCase(),
+            name: newName,
+            nameLower: newName.toLowerCase(),
             gameId: game.id,
             creatorId: request.userId!,
           },

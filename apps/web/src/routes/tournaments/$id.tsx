@@ -63,7 +63,15 @@ function TournamentPage() {
   });
 
   const cloneMutation = useMutation({
-    mutationFn: () => tournamentsApi.copy(tournamentId),
+    mutationFn: () => {
+      const newName = `${t('tournament.copyPrefix')} ${tournament.name}`;
+      return tournamentsApi.copy(tournamentId, newName);
+    },
+    onSuccess: (copiedTournament) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+      // Optionally navigate to the new tournament
+      // router.navigate({ to: `/tournaments/${copiedTournament.id}` });
+    },
   });
 
   const joinMutation = useMutation({

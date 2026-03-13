@@ -77,6 +77,7 @@
   "tournament.bracketBtn": "Bracket",
   "tournament.copy": "Copy tournament",
   "tournament.copyTooltip": "Create a copy of this tournament (no participants, results, or dates)",
+  "tournament.copyPrefix": "Copy",
 
   "btn.join": "Join",
   "btn.joining": "Joining...",
