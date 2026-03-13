@@ -107,10 +107,10 @@ function CreateTournamentPage() {
                 <Label htmlFor="season">{t('create.season')}</Label>
                 <Input
                   id="season"
-                  type="string"
+                  type="number"
                   value={form.season}
                   onChange={(e) => setForm((f) => ({ ...f, season: e.target.value }))}
-                  placeholder={t('create.seasonPlaceholder')}
+                  placeholder={'2027'}
                 />
               </div>
             </div>
