@@ -289,7 +289,7 @@
   "guide.create.req3": "<b>Макс. участников</b> — от 2 до 512",
   "guide.create.req4": "<b>Формат</b> — тип турнирной сетки",
   "guide.create.optionalTitle": "Опциональные поля:",
-  "guide.create.opt1": "<b>Сезон</b> — номер сезона",
+  "guide.create.opt1": "<b>Сезон</b> — название сезона",
   "guide.create.opt2": "<b>Логотип</b> — URL изображения (http/https)",
   "guide.create.opt3": "<b>Описание</b> — до 10 000 символов",
   "guide.create.opt4": "<b>Даты регистрации</b> — автоматический переход в статус «Регистрация»",

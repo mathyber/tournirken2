@@ -67,10 +67,11 @@ function CreateTournamentPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const seasonValue = form.season.trim();
     createMutation.mutate({
       tournamentName: form.tournamentName,
       gameName: form.gameName,
-      season: form.season ? parseInt(form.season) : undefined,
+      season: seasonValue ? seasonValue : undefined,
       format: form.format,
       maxParticipants: parseInt(form.maxParticipants),
       info: form.info || undefined,
@@ -107,10 +108,10 @@ function CreateTournamentPage() {
                 <Label htmlFor="season">{t('create.season')}</Label>
                 <Input
                   id="season"
-                  type="number"
+                  type="text"
                   value={form.season}
                   onChange={(e) => setForm((f) => ({ ...f, season: e.target.value }))}
-                  placeholder={'2027'}
+                  placeholder={t('create.seasonPlaceholder')}
                 />
               </div>
             </div>

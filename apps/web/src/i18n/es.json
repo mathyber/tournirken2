@@ -289,7 +289,7 @@
   "guide.create.req3": "<b>Máx. participantes</b> — de 2 a 512",
   "guide.create.req4": "<b>Formato</b> — tipo de bracket",
   "guide.create.optionalTitle": "Campos opcionales:",
-  "guide.create.opt1": "<b>Temporada</b> — número de temporada",
+  "guide.create.opt1": "<b>Temporada</b> — etiqueta de temporada",
   "guide.create.opt2": "<b>Logo</b> — URL de imagen (http/https)",
   "guide.create.opt3": "<b>Descripción</b> — hasta 10.000 caracteres",
   "guide.create.opt4": "<b>Fechas de registro</b> — transición automática al estado 'Registro'",

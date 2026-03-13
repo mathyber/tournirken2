@@ -56,7 +56,7 @@ export declare const CreateGameSchema: z.ZodObject<{
 export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
     tournamentName: z.ZodString;
     gameName: z.ZodString;
-    season: z.ZodOptional<z.ZodNumber>;
+    season: z.ZodOptional<z.ZodString>;
     info: z.ZodOptional<z.ZodString>;
     logo: z.ZodUnion<[z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>, z.ZodLiteral<"">]>;
     maxParticipants: z.ZodNumber;
@@ -72,7 +72,7 @@ export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
     onlyOrganizerSetsResults: boolean;
     format: TournamentFormat;
     info?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     registrationStart?: Date | null | undefined;
     registrationEnd?: Date | null | undefined;
@@ -83,7 +83,7 @@ export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
     maxParticipants: number;
     format: TournamentFormat;
     info?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     onlyOrganizerSetsResults?: boolean | undefined;
     registrationStart?: Date | null | undefined;
@@ -96,7 +96,7 @@ export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
     onlyOrganizerSetsResults: boolean;
     format: TournamentFormat;
     info?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     registrationStart?: Date | null | undefined;
     registrationEnd?: Date | null | undefined;
@@ -107,7 +107,7 @@ export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
     maxParticipants: number;
     format: TournamentFormat;
     info?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     onlyOrganizerSetsResults?: boolean | undefined;
     registrationStart?: Date | null | undefined;
@@ -117,7 +117,7 @@ export declare const CreateTournamentSchema: z.ZodEffects<z.ZodObject<{
 export declare const UpdateTournamentSchema: z.ZodEffects<z.ZodObject<{
     tournamentName: z.ZodOptional<z.ZodString>;
     gameName: z.ZodOptional<z.ZodString>;
-    season: z.ZodOptional<z.ZodOptional<z.ZodNumber>>;
+    season: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     info: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     logo: z.ZodOptional<z.ZodUnion<[z.ZodOptional<z.ZodEffects<z.ZodString, string, string>>, z.ZodLiteral<"">]>>;
     maxParticipants: z.ZodOptional<z.ZodNumber>;
@@ -130,7 +130,7 @@ export declare const UpdateTournamentSchema: z.ZodEffects<z.ZodObject<{
     info?: string | undefined;
     tournamentName?: string | undefined;
     gameName?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     maxParticipants?: number | undefined;
     onlyOrganizerSetsResults?: boolean | undefined;
@@ -142,7 +142,7 @@ export declare const UpdateTournamentSchema: z.ZodEffects<z.ZodObject<{
     info?: string | undefined;
     tournamentName?: string | undefined;
     gameName?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     maxParticipants?: number | undefined;
     onlyOrganizerSetsResults?: boolean | undefined;
@@ -154,7 +154,7 @@ export declare const UpdateTournamentSchema: z.ZodEffects<z.ZodObject<{
     info?: string | undefined;
     tournamentName?: string | undefined;
     gameName?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     maxParticipants?: number | undefined;
     onlyOrganizerSetsResults?: boolean | undefined;
@@ -166,7 +166,7 @@ export declare const UpdateTournamentSchema: z.ZodEffects<z.ZodObject<{
     info?: string | undefined;
     tournamentName?: string | undefined;
     gameName?: string | undefined;
-    season?: number | undefined;
+    season?: string | undefined;
     logo?: string | undefined;
     maxParticipants?: number | undefined;
     onlyOrganizerSetsResults?: boolean | undefined;

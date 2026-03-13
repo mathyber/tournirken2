@@ -34,7 +34,7 @@ export const CreateGameSchema = z.object({
 export const CreateTournamentSchema = z.object({
   tournamentName: z.string().min(1).max(100),
   gameName: z.string().min(1).max(100),
-  season: z.number().int().positive().optional(),
+  season: z.string().min(1).max(100).optional(),
   info: z.string().max(10000).optional(),
   logo: z.string().url('Логотип должен быть корректным http/https URL').refine(
     (v) => v.startsWith('http://') || v.startsWith('https://'),

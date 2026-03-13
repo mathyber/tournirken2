@@ -31,7 +31,7 @@ exports.CreateGameSchema = zod_1.z.object({
 exports.CreateTournamentSchema = zod_1.z.object({
     tournamentName: zod_1.z.string().min(1).max(100),
     gameName: zod_1.z.string().min(1).max(100),
-    season: zod_1.z.number().int().positive().optional(),
+    season: zod_1.z.string().min(1).max(100).optional(),
     info: zod_1.z.string().max(10000).optional(),
     logo: zod_1.z.string().url('Логотип должен быть корректным http/https URL').refine((v) => v.startsWith('http://') || v.startsWith('https://'), { message: 'Логотип должен быть корректным http/https URL' }).optional().or(zod_1.z.literal('')),
     maxParticipants: zod_1.z.number().int().min(2).max(512),

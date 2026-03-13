@@ -1,7 +1,7 @@
 {
   "tournamentName": "Чемпионат жопы",
   "gameName": "Крестики-нолики",
-  "season": 1,
+  "season": "Spring 2028",
   "format": "SINGLE_ELIMINATION",
   "maxParticipants": 16,
   "info": "А вот)))",
