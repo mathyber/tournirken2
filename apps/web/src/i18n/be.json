@@ -287,7 +287,7 @@
   "guide.create.req3": "<b>Макс. удзельнікаў</b> — ад 2 да 512",
   "guide.create.req4": "<b>Фармат</b> — тып турнірнай сеткі",
   "guide.create.optionalTitle": "Неабавязковыя палі:",
-  "guide.create.opt1": "<b>Сезон</b> — нумар сезону",
+  "guide.create.opt1": "<b>Сезон</b> — назва сезону",
   "guide.create.opt2": "<b>Лагатып</b> — URL выявы (http/https)",
   "guide.create.opt3": "<b>Апісанне</b> — да 10 000 сімвалаў",
   "guide.create.opt4": "<b>Даты рэгістрацыі</b> — аўтаматычны пераход у статус «Рэгістрацыя»",

@@ -24,7 +24,7 @@ export interface Tournament {
     id: number;
     name: string;
     game: Game;
-    season?: number | null;
+    season?: string | null;
     organizer: {
         id: number;
         login: string;
