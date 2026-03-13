@@ -674,6 +674,8 @@ if (!id) return badRequest(reply, 'Неверный ID');
       const nodeIdToGroupId = new Map<string, number>();
       // Map groupId -> size (from schema)
       const customGroupSizes: Record<number, number> = {};
+      // Map groupId -> expected participant count based on connected inputs
+      const customGroupExpectedCounts: Record<number, number> = {};
 
       // ── Step 1: Create MatchNode records (without links yet) ───────────────
       for (const mn of matchNodes as any[]) {
@@ -693,6 +695,15 @@ if (!id) return badRequest(reply, 'Неверный ID');
       // round-robin matches between all group members.
       for (const gn of groupNodes as any[]) {
         const groupSize: number = gn.data?.size ?? 4;
+
+        // Determine how many participants are реально подключены к группе (по входящим ребрам)
+        const incomingEdges = edges.filter((e: any) => e.target === gn.id);
+        const incomingSlots = new Set<number>();
+        for (const e of incomingEdges) {
+          const slot = parseInputSlot(e.targetHandle);
+          incomingSlots.add(slot);
+        }
+        const expectedCount = incomingSlots.size > 0 ? incomingSlots.size : groupSize;
 
         // Collect the input slots that StartNodes connect to this group, ordered by slot number.
         // Edges from StartNodes to GroupNode have edgeType 'participant' and targetHandle 'input-N'.
@@ -725,6 +736,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
         });
         nodeIdToGroupId.set(gn.id, group.id);
         customGroupSizes[group.id] = groupSize;
+        customGroupExpectedCounts[group.id] = expectedCount;
 
         // Assign participants to the group
         for (const participantId of groupParticipantIds) {
@@ -734,7 +746,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
         }
 
         // Generate round-robin matches only when the group is fully populated
-        if (groupParticipantIds.length >= 2 && groupParticipantIds.length >= groupSize) {
+        if (groupParticipantIds.length >= 2 && groupParticipantIds.length >= expectedCount) {
           const schedule = buildRoundRobinSchedule(groupParticipantIds);
           for (let roundIdx = 0; roundIdx < schedule.length; roundIdx++) {
             for (const [p1, p2] of schedule[roundIdx]) {
@@ -836,6 +848,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
         customNodeMap: {},
         customGroupMap: {},
         customGroupSizes: {},
+        customGroupExpectedCounts: {},
         customMatchInputSlots: {},
         customGroupOutputs: {},
         hasCustomGroups: false,
@@ -859,6 +872,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
 
       // Persist group sizes and match input map
       gridMeta.customGroupSizes = customGroupSizes;
+      gridMeta.customGroupExpectedCounts = customGroupExpectedCounts;
       gridMeta.customMatchInputSlots = customMatchInputSlots;
 
       // ── Step 4: Assign StartNode participants to direct-match inputs ────────
@@ -889,7 +903,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
       // connects to which match input slot. Store this as:
       //   customGroupOutputs: { "<groupDbId>-<rank>": { matchId, slot } }
       // Also store customNodeMap: { "<nodeId>": matchDbId } for the view layer.
-      const customGroupOutputs: Record<string, { matchId: number; slot: number }> = {};
+      const customGroupOutputs: Record<string, { matchId?: number; groupId?: number; slot: number; type?: string }> = {};
 
       // Rank edges from GroupNode outputs (sourceHandle: 'rank-N') to MatchNode inputs
       const rankEdges = edges.filter(
@@ -899,11 +913,16 @@ if (!id) return badRequest(reply, 'Неверный ID');
       for (const edge of rankEdges) {
         const groupDbId = nodeIdToGroupId.get(edge.source);
         const targetMatchDbId = nodeIdToMatchId.get(edge.target);
-        if (!groupDbId || !targetMatchDbId) continue;
+        const targetGroupDbId = nodeIdToGroupId.get(edge.target);
+        if (!groupDbId || (!targetMatchDbId && !targetGroupDbId)) continue;
         const rankNum = parseInt(edge.sourceHandle.replace('rank-', ''));
         const rank = isNaN(rankNum) ? 1 : (rankNum === 0 ? 1 : rankNum);
         const slot = parseInputSlot(edge.targetHandle);
-        customGroupOutputs[`${groupDbId}-${rank}`] = { matchId: targetMatchDbId, slot };
+        if (targetMatchDbId) {
+          customGroupOutputs[`${groupDbId}-${rank}`] = { matchId: targetMatchDbId, slot, type: 'match' };
+        } else if (targetGroupDbId) {
+          customGroupOutputs[`${groupDbId}-${rank}`] = { groupId: targetGroupDbId, slot, type: 'group' };
+        }
       }
 
       // customNodeMap: nodeId → DB matchId (for the view to map nodes to real matches)

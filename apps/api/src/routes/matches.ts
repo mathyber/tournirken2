@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
 import { badRequest, forbidden, notFound, unauthorized, parseId } from '../lib/errors';
 import { SetMatchResultSchema } from '@tournirken/shared';
-import { advanceWinner, advanceLoser, autoAdvanceCustomBye, generateSwissRound, generateSingleElimination, getSwissStandings } from '../services/brackets';
+import { advanceWinner, advanceLoser, assignParticipantToGroup, autoAdvanceCustomBye, generateSwissRound, generateSingleElimination, getSwissStandings } from '../services/brackets';
 
 const MATCH_INCLUDE = {
   stage: true,
@@ -186,7 +186,8 @@ if (!id) return badRequest(reply, 'Неверный ID');
               customMeta?.customNodeMap ||
               customMeta?.customGroupMap ||
               customMeta?.customGroupOutputs ||
-              customMeta?.customMatchInputSlots
+              customMeta?.customMatchInputSlots ||
+              customMeta?.customGroupExpectedCounts
             );
           } catch { /* ignore */ }
         }
@@ -292,6 +293,43 @@ if (!id) return badRequest(reply, 'Неверный ID');
             try {
               const { nodes, edges } = JSON.parse(tournament.customSchema);
               const meta = customMeta ?? JSON.parse(tournament.gridJson);
+              let expectedCounts: Record<number, number> | undefined = meta.customGroupExpectedCounts;
+              if (!expectedCounts && tournament.customSchema && meta.customGroupMap) {
+                try {
+                  const schema = JSON.parse(tournament.customSchema);
+                  const schemaEdges = schema?.edges ?? [];
+                  const slotsByNode: Record<string, Set<number>> = {};
+                  for (const e of schemaEdges) {
+                    if (!e?.target) continue;
+                    const slotNum = parseInputSlot(e.targetHandle);
+                    const key = e.target;
+                    if (!slotsByNode[key]) slotsByNode[key] = new Set<number>();
+                    slotsByNode[key].add(slotNum);
+                  }
+                  expectedCounts = {};
+                  for (const [nodeId, groupId] of Object.entries(meta.customGroupMap)) {
+                    const slots = slotsByNode[nodeId];
+                    if (slots && slots.size > 0) expectedCounts[groupId as any] = slots.size;
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+
+              // If there are unfinished groups, do not finalize yet
+              if (expectedCounts) {
+                const groups = await prisma.tournamentGroup.findMany({
+                  where: { tournamentId: match.tournament.id },
+                  select: { id: true, isFinished: true },
+                });
+                const blocked = groups.some((g) => {
+                  const expected = expectedCounts?.[g.id];
+                  const threshold = expected ?? 2;
+                  return threshold > 1 && !g.isFinished;
+                });
+                if (blocked) return;
+              }
+
               const customNodeMap = meta.customNodeMap || {};
               const customGroupMap = meta.customGroupMap || {};
               const finalNode = nodes.find((n: any) => n.type === 'final');
@@ -569,13 +607,23 @@ async function checkAndAdvanceCustomGroupOutputs(tournamentId: number, groupId: 
 
   let meta: any;
   try { meta = JSON.parse(tournament.gridJson); } catch { return; }
-  if (!meta.hasCustomGroups || !meta.customGroupOutputs) return;
-
   // Check if all matches in this specific group are finished
   const groupMatches = await prisma.match.findMany({
     where: { tournamentId, groupId },
   });
-  if (groupMatches.length === 0) return;
+  if (groupMatches.length === 0) {
+    const expected = meta?.customGroupExpectedCounts?.[groupId];
+    if (expected && expected <= 1) {
+      const count = await prisma.groupParticipant.count({ where: { groupId } });
+      if (count >= expected) {
+        await prisma.tournamentGroup.update({
+          where: { id: groupId },
+          data: { isFinished: true },
+        });
+      }
+    }
+    return;
+  }
   const allDone = groupMatches.every((m) => m.isFinished);
   if (!allDone) return;
 
@@ -598,7 +646,7 @@ async function checkAndAdvanceCustomGroupOutputs(tournamentId: number, groupId: 
   const standings = computeGroupStandings(group);
 
   // For each rank-N output wired in customGroupOutputs, advance the participant
-  const outputs: Record<string, { matchId: number; slot: number }> = meta.customGroupOutputs;
+  const outputs: Record<string, { matchId?: number; groupId?: number; slot: number; type?: string }> = meta.customGroupOutputs || {};
   for (let rank = 1; rank <= standings.length; rank++) {
     const key = `${groupId}-${rank}`;
     const target = outputs[key];
@@ -607,16 +655,29 @@ async function checkAndAdvanceCustomGroupOutputs(tournamentId: number, groupId: 
     const participantId = standings[rank - 1]?.participantId;
     if (!participantId) continue;
 
-    const updateData: any = target.slot === 1
-      ? { player1Id: participantId }
-      : { player2Id: participantId };
+    if (target.groupId) {
+      await assignParticipantToGroup(tournamentId, target.groupId, participantId, target.slot);
+      continue;
+    }
+    if (target.matchId) {
+      const updateData: any = target.slot === 1
+        ? { player1Id: participantId }
+        : { player2Id: participantId };
 
-    await prisma.match.update({
-      where: { id: target.matchId },
-      data: updateData,
-    });
+      await prisma.match.update({
+        where: { id: target.matchId },
+        data: updateData,
+      });
 
-    // Auto-advance if the other slot will never be filled (custom templates/byes)
-    await autoAdvanceCustomBye(tournamentId, target.matchId);
+      // Auto-advance if the other slot will never be filled (custom templates/byes)
+      await autoAdvanceCustomBye(tournamentId, target.matchId);
+    }
   }
+}
+
+function parseInputSlot(handle: string | null | undefined): number {
+  if (!handle) return 1;
+  const num = parseInt(handle.replace(/[^0-9]/g, ''));
+  if (isNaN(num)) return 1;
+  return num === 0 ? 1 : num;
 }

@@ -756,7 +756,7 @@ export async function advanceLoser(match: {
   }
 }
 
-async function assignParticipantToGroup(
+export async function assignParticipantToGroup(
   tournamentId: number,
   groupId: number,
   participantId: number,
@@ -768,11 +768,12 @@ async function assignParticipantToGroup(
   });
   if (exists) return;
 
-  // Read group size from gridJson metadata (if available)
+  // Read group size / expected count from gridJson metadata (if available)
   let groupSize: number | null = null;
+  let expectedCount: number | null = null;
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { gridJson: true },
+    select: { gridJson: true, customSchema: true },
   });
   if (tournament?.gridJson) {
     try {
@@ -780,13 +781,35 @@ async function assignParticipantToGroup(
       if (meta?.customGroupSizes?.[groupId]) {
         groupSize = Number(meta.customGroupSizes[groupId]);
       }
+      if (meta?.customGroupExpectedCounts?.[groupId]) {
+        expectedCount = Number(meta.customGroupExpectedCounts[groupId]);
+      } else if (tournament?.customSchema && meta?.customGroupMap) {
+        // Fallback for older tournaments: derive expected count from schema edges
+        const groupNodeId = Object.entries(meta.customGroupMap).find(([, gid]) => gid === groupId)?.[0];
+        if (groupNodeId) {
+          try {
+            const schema = JSON.parse(tournament.customSchema);
+            const edges = schema?.edges ?? [];
+            const incomingSlots = new Set<number>();
+            for (const e of edges) {
+              if (e.target !== groupNodeId) continue;
+              const slot = parseInputSlot(e.targetHandle);
+              incomingSlots.add(slot);
+            }
+            if (incomingSlots.size > 0) expectedCount = incomingSlots.size;
+          } catch {
+            // ignore
+          }
+        }
+      }
     } catch {
       // ignore
     }
   }
 
+  const targetCount = expectedCount ?? groupSize;
   const currentCount = await prisma.groupParticipant.count({ where: { groupId } });
-  if (groupSize && currentCount >= groupSize) return;
+  if (targetCount && currentCount >= targetCount) return;
 
   await prisma.groupParticipant.create({
     data: { groupId, participantId },
@@ -794,7 +817,7 @@ async function assignParticipantToGroup(
 
   // If the group is now full, generate round-robin matches (only once)
   const newCount = currentCount + 1;
-  if (groupSize && newCount >= groupSize) {
+  if (targetCount && newCount >= targetCount) {
     const existingMatches = await prisma.match.count({ where: { groupId, tournamentId } });
     if (existingMatches === 0) {
       const participants = await prisma.groupParticipant.findMany({
@@ -919,6 +942,13 @@ function buildRoundNames(rounds: number, type: 'single'): string[] {
     else names.push(`Раунд ${i}`);
   }
   return names;
+}
+
+function parseInputSlot(handle: string | null | undefined): number {
+  if (!handle) return 1;
+  const num = parseInt(handle.replace(/[^0-9]/g, ''));
+  if (isNaN(num)) return 1;
+  return num === 0 ? 1 : num;
 }
 
 async function ensureStage(name: string) {
