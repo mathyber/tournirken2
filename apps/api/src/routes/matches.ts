@@ -171,7 +171,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
 
         // Elimination / Mixed playoff final: no next match, not a group-stage match
         if (!fullMatch?.nextMatchId && !match.groupId &&
-            ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED', 'CUSTOM'].includes(format)) {
+            ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED'].includes(format)) {
 
           // ── Double Elimination: Grand Final Reset check ──────────────────
           // In DE, player1 comes from WB (0 losses), player2 comes from LB (1 loss).
@@ -257,6 +257,54 @@ if (!id) return badRequest(reply, 'Неверный ID');
           });
           if (remaining === 0) {
             await finalizeRoundRobinResults(match.tournament.id);
+          }
+        }
+
+        // CUSTOM: check if all matches are finished, and assign placements based on final node
+        if (format === 'CUSTOM') {
+          const remaining = await prisma.match.count({
+            where: { tournamentId: match.tournament.id, isFinished: false },
+          });
+          if (remaining === 0) {
+            // All matches finished, determine winner from final node
+            const tourney = await prisma.tournament.findUnique({
+              where: { id: match.tournament.id },
+              select: { customSchema: true, gridJson: true },
+            });
+            if (tourney?.customSchema && tourney.gridJson) {
+              try {
+                const { nodes, edges } = JSON.parse(tourney.customSchema);
+                const meta = JSON.parse(tourney.gridJson);
+                const customNodeMap = meta.customNodeMap || {};
+                const finalNode = nodes.find((n: any) => n.type === 'final');
+                if (finalNode) {
+                  const incomingEdges = edges.filter((e: any) => e.target === finalNode.id);
+                  if (incomingEdges.length > 0) {
+                    const finalMatchNodeId = incomingEdges[0].source;
+                    const finalMatchId = customNodeMap[finalMatchNodeId];
+                    if (finalMatchId) {
+                      const finalMatch = await prisma.match.findUnique({
+                        where: { id: finalMatchId },
+                        select: { winnerId: true, player1Id: true, player2Id: true },
+                      });
+                      if (finalMatch?.winnerId) {
+                        await prisma.tournamentParticipant.update({ where: { id: finalMatch.winnerId }, data: { finalResult: '1' } });
+                        const loserId = finalMatch.winnerId === finalMatch.player1Id ? finalMatch.player2Id : finalMatch.player1Id;
+                        if (loserId) {
+                          await prisma.tournamentParticipant.update({ where: { id: loserId }, data: { finalResult: '2' } });
+                        }
+                      }
+                    }
+                  }
+                }
+                await prisma.tournament.update({
+                  where: { id: match.tournament.id },
+                  data: { status: 'FINISHED', tournamentEnd: new Date() },
+                });
+              } catch (err) {
+                console.error('Error finishing CUSTOM tournament:', err);
+              }
+            }
           }
         }
         // ────────────────────────────────────────────────────────────────────
