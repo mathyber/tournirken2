@@ -51,7 +51,7 @@ function TournamentPage() {
   const { data: groups = [] } = useQuery({
     queryKey: ['tournament-groups', tournamentId],
     queryFn: () => tournamentsApi.groups(tournamentId),
-    enabled: !!tournament && ['ROUND_ROBIN', 'MIXED', 'SWISS'].includes(tournament?.format),
+    enabled: !!tournament && ['ROUND_ROBIN', 'MIXED', 'SWISS', 'CUSTOM'].includes(tournament?.format),
   });
 
   const fillRandomMutation = useMutation({
