@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-r
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ru, enUS } from 'date-fns/locale';
-import { Users, Calendar, Trophy, GitBranch, Settings } from 'lucide-react';
+import { Users, Calendar, Trophy, GitBranch, Settings, Copy } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments';
 import { useAuthStore } from '../../stores/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -174,7 +174,7 @@ function TournamentPage() {
                 disabled={cloneMutation.isPending}
                 title={t('tournament.copyTooltip')}
               >
-                <GitBranch className="h-4 w-4" />{t('tournament.copy')}
+                <Copy className="h-4 w-4" />{t('tournament.copy')}
               </Button>
             )}
             {user && (
