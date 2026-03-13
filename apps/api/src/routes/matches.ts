@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
 import { badRequest, forbidden, notFound, unauthorized, parseId } from '../lib/errors';
 import { SetMatchResultSchema } from '@tournirken/shared';
-import { advanceWinner, advanceLoser, generateSwissRound, generateSingleElimination, getSwissStandings } from '../services/brackets';
+import { advanceWinner, advanceLoser, autoAdvanceCustomBye, generateSwissRound, generateSingleElimination, getSwissStandings } from '../services/brackets';
 
 const MATCH_INCLUDE = {
   stage: true,
@@ -145,17 +145,18 @@ if (!id) return badRequest(reply, 'Неверный ID');
 
         // Advance winner to next match (for elimination formats)
         const fullMatch = await prisma.match.findUnique({ where: { id } });
-        if (fullMatch?.nextMatchId && finalWinnerId) {
+        if (finalWinnerId && fullMatch) {
           await advanceWinner({
             id: fullMatch.id,
             winnerId: finalWinnerId,
             nextMatchId: fullMatch.nextMatchId,
             nextMatchSlot: fullMatch.nextMatchSlot,
+            tournamentId: match.tournamentId,
           });
         }
 
-        // Advance loser to lower bracket (for double elimination WB matches)
-        if (fullMatch?.loserNextMatchId && finalWinnerId) {
+        // Advance loser to lower bracket (for double elimination / custom loser routing)
+        if (finalWinnerId && fullMatch) {
           await advanceLoser({
             id: fullMatch.id,
             player1Id: fullMatch.player1Id,
@@ -163,14 +164,35 @@ if (!id) return badRequest(reply, 'Неверный ID');
             winnerId: finalWinnerId,
             loserNextMatchId: fullMatch.loserNextMatchId,
             loserNextMatchSlot: fullMatch.loserNextMatchSlot,
+            tournamentId: match.tournamentId,
           });
         }
 
         // ── Assign final placements ──────────────────────────────────────────
         const format = match.tournament.format;
 
-        // Elimination / Mixed playoff final: no next match, not a group-stage match
-        if (!fullMatch?.nextMatchId && !match.groupId &&
+        const tournament = await prisma.tournament.findUnique({
+          where: { id: match.tournament.id },
+          include: { participants: true },
+        });
+
+        let customMeta: any = null;
+        let hasCustomRouting = false;
+        if (tournament?.gridJson) {
+          try {
+            customMeta = JSON.parse(tournament.gridJson);
+            hasCustomRouting = !!(
+              customMeta?.conditionalAdvancement ||
+              customMeta?.customNodeMap ||
+              customMeta?.customGroupMap ||
+              customMeta?.customGroupOutputs ||
+              customMeta?.customMatchInputSlots
+            );
+          } catch { /* ignore */ }
+        }
+
+        // Elimination / Mixed playoff final: only for legacy (non-custom) routing
+        if (!hasCustomRouting && !fullMatch?.nextMatchId && !match.groupId &&
             ['SINGLE_ELIMINATION', 'DOUBLE_ELIMINATION', 'MIXED'].includes(format)) {
 
           // ── Double Elimination: Grand Final Reset check ──────────────────
@@ -261,77 +283,126 @@ if (!id) return badRequest(reply, 'Неверный ID');
         }
 
         // CUSTOM: check if all matches are finished, and assign placements based on final node
-        if (format === 'CUSTOM') {
+        if (hasCustomRouting && tournament?.customSchema && tournament.gridJson) {
           const remaining = await prisma.match.count({
             where: { tournamentId: match.tournament.id, isFinished: false },
           });
           if (remaining === 0) {
             // All matches finished, determine winner from final node
-            const tourney = await prisma.tournament.findUnique({
-              where: { id: match.tournament.id },
-              select: { customSchema: true, gridJson: true },
-            });
-            if (tourney?.customSchema && tourney.gridJson) {
-              try {
-                const { nodes, edges } = JSON.parse(tourney.customSchema);
-                const meta = JSON.parse(tourney.gridJson);
-                const customNodeMap = meta.customNodeMap || {};
-                const finalNode = nodes.find((n: any) => n.type === 'final');
-                if (finalNode) {
-                  const incomingEdges = edges.filter((e: any) => e.target === finalNode.id);
-                  if (incomingEdges.length > 0) {
-                    // Prefer explicit loser connection (e.g. when final node expects loser of a match)
-                    const finalEdge = incomingEdges.find((e: any) => {
-                      const t = e.data?.edgeType ?? e.type;
-                      return t === 'loser';
-                    }) ?? incomingEdges.find((e: any) => {
-                      const t = e.data?.edgeType ?? e.type;
-                      return t === 'winner';
-                    }) ?? incomingEdges[0];
+            try {
+              const { nodes, edges } = JSON.parse(tournament.customSchema);
+              const meta = customMeta ?? JSON.parse(tournament.gridJson);
+              const customNodeMap = meta.customNodeMap || {};
+              const customGroupMap = meta.customGroupMap || {};
+              const finalNode = nodes.find((n: any) => n.type === 'final');
 
-                    const edgeType = (finalEdge.data?.edgeType ?? finalEdge.type) as string;
-                    const finalMatchNodeId = finalEdge.source;
-                    const finalMatchId = customNodeMap[finalMatchNodeId];
-                    if (finalMatchId) {
-                      const finalMatch = await prisma.match.findUnique({
-                        where: { id: finalMatchId },
-                        select: { winnerId: true, player1Id: true, player2Id: true },
-                      });
-                      if (finalMatch?.winnerId) {
-                        const finalWinnerId = edgeType === 'loser'
-                          ? (finalMatch.winnerId === finalMatch.player1Id ? finalMatch.player2Id : finalMatch.player1Id)
-                          : finalMatch.winnerId;
+              let finalWinnerId: number | null = null;
+              let finalRunnerUpId: number | null = null;
+              let groupRankForWinner: number | null = null;
+              let groupStandingsForWinner: any[] | null = null;
 
-                        if (finalWinnerId) {
-                          await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
-                          const finalLoserId = finalWinnerId === finalMatch.player1Id ? finalMatch.player2Id : finalMatch.player1Id;
-                          if (finalLoserId) {
-                            await prisma.tournamentParticipant.update({ where: { id: finalLoserId }, data: { finalResult: '2' } });
-                          }
-                        }
+              if (finalNode) {
+                const incomingEdges = edges.filter((e: any) => e.target === finalNode.id);
+                for (const edge of incomingEdges) {
+                  const edgeType = (edge.data?.edgeType ?? edge.type) as string;
+                  const sourceNodeId = edge.source;
+
+                  // Match -> Final
+                  if (customNodeMap[sourceNodeId]) {
+                    const finalMatchId = customNodeMap[sourceNodeId];
+                    const finalMatch = await prisma.match.findUnique({
+                      where: { id: finalMatchId },
+                      select: { winnerId: true, player1Id: true, player2Id: true },
+                    });
+                    if (!finalMatch?.winnerId) continue;
+
+                    const p1 = finalMatch.player1Id;
+                    const p2 = finalMatch.player2Id;
+                    if (!p1 || !p2) continue;
+
+                    if (edgeType === 'loser') {
+                      finalWinnerId = finalMatch.winnerId === p1 ? p2 : p1;
+                      finalRunnerUpId = finalMatch.winnerId;
+                    } else if (edgeType === 'winner-1') {
+                      if (finalMatch.winnerId === p1) {
+                        finalWinnerId = p1;
+                        finalRunnerUpId = p2;
+                      } else {
+                        continue;
                       }
+                    } else if (edgeType === 'winner-2') {
+                      if (finalMatch.winnerId === p2) {
+                        finalWinnerId = p2;
+                        finalRunnerUpId = p1;
+                      } else {
+                        continue;
+                      }
+                    } else {
+                      // 'winner' or any other: use the actual winner
+                      finalWinnerId = finalMatch.winnerId;
+                      finalRunnerUpId = finalMatch.winnerId === p1 ? p2 : p1;
                     }
                   }
+
+                  // Group -> Final (rank-based)
+                  if (!finalWinnerId && customGroupMap[sourceNodeId]) {
+                    const groupId = customGroupMap[sourceNodeId];
+                    const group = await prisma.tournamentGroup.findUnique({
+                      where: { id: groupId },
+                      include: {
+                        matches: { include: { results: { where: { isAccepted: true }, take: 1 } } },
+                        participants: { include: { participant: true } },
+                      },
+                    });
+                    if (!group) continue;
+                    const standings = computeGroupStandings(group);
+                    let rank = 1;
+                    if (typeof edge.sourceHandle === 'string' && edge.sourceHandle.startsWith('rank-')) {
+                      const rankNum = parseInt(edge.sourceHandle.replace('rank-', ''));
+                      rank = isNaN(rankNum) ? 1 : (rankNum === 0 ? 1 : rankNum);
+                    }
+                    const winner = standings[rank - 1]?.participantId;
+                    if (!winner) continue;
+                    finalWinnerId = winner;
+                    groupRankForWinner = rank;
+                    groupStandingsForWinner = standings;
+                    if (standings.length > 1) {
+                      finalRunnerUpId = rank === 1
+                        ? standings[1]?.participantId ?? null
+                        : standings[0]?.participantId ?? null;
+                    }
+                  }
+
+                  if (finalWinnerId) break;
                 }
-                await prisma.tournament.update({
-                  where: { id: match.tournament.id },
-                  data: { status: 'FINISHED', tournamentEnd: new Date() },
-                });
-              } catch (err) {
-                console.error('Error finishing CUSTOM tournament:', err);
               }
+
+              if (finalWinnerId) {
+                await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
+              }
+              if (finalRunnerUpId && finalRunnerUpId !== finalWinnerId) {
+                await prisma.tournamentParticipant.update({ where: { id: finalRunnerUpId }, data: { finalResult: '2' } });
+              }
+              if (groupStandingsForWinner && groupRankForWinner === 1 && groupStandingsForWinner.length > 2) {
+                const thirdId = groupStandingsForWinner[2]?.participantId;
+                if (thirdId) {
+                  await prisma.tournamentParticipant.update({ where: { id: thirdId }, data: { finalResult: '3' } });
+                }
+              }
+
+              await prisma.tournament.update({
+                where: { id: match.tournament.id },
+                data: { status: 'FINISHED', tournamentEnd: new Date() },
+              });
+            } catch (err) {
+              console.error('Error finishing CUSTOM tournament:', err);
             }
           }
         }
         // ────────────────────────────────────────────────────────────────────
 
         // Check Swiss: all matches in round finished? Generate next round
-        const tournament = await prisma.tournament.findUnique({
-          where: { id: match.tournament.id },
-          include: { participants: true },
-        });
-
-        if (tournament?.format === 'SWISS' && tournament.gridJson) {
+        if (!hasCustomRouting && tournament?.format === 'SWISS' && tournament.gridJson) {
           try {
             const meta = JSON.parse(tournament.gridJson);
             const currentRound = meta.currentRound as number;
@@ -371,12 +442,12 @@ if (!id) return badRequest(reply, 'Неверный ID');
         }
 
         // Check if all group matches are done → generate Mixed playoff
-        if (tournament?.format === 'MIXED' && match.groupId) {
+        if (!hasCustomRouting && tournament?.format === 'MIXED' && match.groupId) {
           await checkAndGenerateMixedPlayoff(tournament.id, tournament.participants.map(p => p.id));
         }
 
         // CUSTOM format: check if all matches in the group are done → advance ranked participants
-        if (tournament?.format === 'CUSTOM' && match.groupId) {
+        if (hasCustomRouting && match.groupId) {
           await checkAndAdvanceCustomGroupOutputs(tournament.id, match.groupId);
         }
       }
@@ -544,5 +615,8 @@ async function checkAndAdvanceCustomGroupOutputs(tournamentId: number, groupId: 
       where: { id: target.matchId },
       data: updateData,
     });
+
+    // Auto-advance if the other slot will never be filled (custom templates/byes)
+    await autoAdvanceCustomBye(tournamentId, target.matchId);
   }
 }

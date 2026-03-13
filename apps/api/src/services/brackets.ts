@@ -81,7 +81,13 @@ export async function generateSingleElimination(
     // Auto-advance byes
     for (const prevMatch of prevRoundMatches) {
       if (prevMatch.isBye && prevMatch.winnerId) {
-        await advanceWinner(prevMatch);
+        await advanceWinner({
+          id: prevMatch.id,
+          winnerId: prevMatch.winnerId,
+          nextMatchId: prevMatch.nextMatchId,
+          nextMatchSlot: prevMatch.nextMatchSlot,
+          tournamentId,
+        });
       }
     }
 
@@ -169,7 +175,13 @@ export async function generateDoubleElimination(
     // Auto-advance WBR1 byes up the WB
     for (const m of prevWB) {
       if (m.isBye && m.winnerId) {
-        await advanceWinner(m);
+        await advanceWinner({
+          id: m.id,
+          winnerId: m.winnerId,
+          nextMatchId: m.nextMatchId,
+          nextMatchSlot: m.nextMatchSlot,
+          tournamentId,
+        });
       }
     }
     allWBMatches.push(nextRound);
@@ -487,27 +499,124 @@ export async function advanceWinner(match: {
   winnerId: number | null;
   nextMatchId?: number | null;
   nextMatchSlot?: number | null;
+  tournamentId?: number;
 }) {
-  if (!match.winnerId || !match.nextMatchId) return;
+  if (!match.winnerId) return;
 
-  const nextMatch = await prisma.match.findUnique({ where: { id: match.nextMatchId } });
+  // Check if this is a CUSTOM tournament with conditional advancement
+  let nextMatchId = match.nextMatchId;
+  let nextMatchSlot = match.nextMatchSlot;
+  let nextGroupId: number | null = null;
+  let nextGroupSlot: number | null = null;
+  let gridMeta: any = null;
+
+  if (match.tournamentId) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: match.tournamentId },
+      select: { format: true, gridJson: true },
+    });
+
+    if (tournament?.gridJson) {
+      try {
+        gridMeta = JSON.parse(tournament.gridJson);
+        if (gridMeta?.conditionalAdvancement?.[match.id]) {
+          const advancement = gridMeta.conditionalAdvancement[match.id];
+
+          // Determine which player won to choose the correct advancement path
+          const fullMatch = await prisma.match.findUnique({
+            where: { id: match.id },
+            select: { player1Id: true, player2Id: true },
+          });
+
+          if (fullMatch) {
+            if (match.winnerId === fullMatch.player1Id && advancement.winner1NextMatchId) {
+              nextMatchId = advancement.winner1NextMatchId;
+              nextMatchSlot = advancement.winner1NextMatchSlot;
+              if (advancement.winner1NextGroupId) {
+                nextGroupId = advancement.winner1NextGroupId;
+                nextGroupSlot = advancement.winner1NextGroupSlot ?? null;
+              }
+            } else if (match.winnerId === fullMatch.player2Id && advancement.winner2NextMatchId) {
+              nextMatchId = advancement.winner2NextMatchId;
+              nextMatchSlot = advancement.winner2NextMatchSlot;
+              if (advancement.winner2NextGroupId) {
+                nextGroupId = advancement.winner2NextGroupId;
+                nextGroupSlot = advancement.winner2NextGroupSlot ?? null;
+              }
+            } else if (advancement.winner1NextMatchId) {
+              // Fallback to winner-1 path if available
+              nextMatchId = advancement.winner1NextMatchId;
+              nextMatchSlot = advancement.winner1NextMatchSlot;
+              if (advancement.winner1NextGroupId) {
+                nextGroupId = advancement.winner1NextGroupId;
+                nextGroupSlot = advancement.winner1NextGroupSlot ?? null;
+              }
+            } else if (match.winnerId === fullMatch.player1Id && advancement.winner1NextGroupId) {
+              nextGroupId = advancement.winner1NextGroupId;
+              nextGroupSlot = advancement.winner1NextGroupSlot ?? null;
+            } else if (match.winnerId === fullMatch.player2Id && advancement.winner2NextGroupId) {
+              nextGroupId = advancement.winner2NextGroupId;
+              nextGroupSlot = advancement.winner2NextGroupSlot ?? null;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing tournament gridJson (conditional advancement):', err);
+      }
+    }
+  }
+
+  if (!nextMatchId && nextGroupId && match.tournamentId) {
+    await assignParticipantToGroup(match.tournamentId, nextGroupId, match.winnerId, nextGroupSlot);
+    return;
+  }
+  if (!nextMatchId) return;
+
+  const nextMatch = await prisma.match.findUnique({ where: { id: nextMatchId } });
   if (!nextMatch) return;
 
+  const slot = nextMatchSlot ?? 1;
   const updateData: any = {};
-  if (match.nextMatchSlot === 1) {
+  if (slot === 1) {
     updateData.player1Id = match.winnerId;
   } else {
     updateData.player2Id = match.winnerId;
   }
 
   // Check if both slots are now filled — auto-handle byes in next match
-  const updated = await prisma.match.update({ where: { id: match.nextMatchId }, data: updateData });
+  const updated = await prisma.match.update({ where: { id: nextMatchId }, data: updateData });
 
   // If new match has both players, nothing needed. If one is auto-bye, handle it.
   if (updated.player1Id && !updated.player2Id) {
     // Wait for slot 2
   } else if (!updated.player1Id && updated.player2Id) {
     // Wait for slot 1
+  }
+
+  // Auto-advance if the other slot will never be filled (custom templates/byes)
+  if (match.tournamentId && gridMeta?.customMatchInputSlots?.[nextMatchId]) {
+    const inputMeta = gridMeta.customMatchInputSlots[nextMatchId];
+    const otherSlot = slot === 1 ? 2 : 1;
+    const otherHasInput = otherSlot === 1 ? !!inputMeta?.hasSlot1 : !!inputMeta?.hasSlot2;
+    const otherFilled = otherSlot === 1 ? !!updated.player1Id : !!updated.player2Id;
+    const winnerId = slot === 1 ? updated.player1Id : updated.player2Id;
+
+    if (!otherFilled && !otherHasInput && winnerId) {
+      await prisma.match.update({
+        where: { id: nextMatchId },
+        data: { isFinished: true, isBye: true, winnerId },
+      });
+      const fullNext = await prisma.match.findUnique({ where: { id: nextMatchId } });
+      if (fullNext?.winnerId) {
+        await advanceWinner({
+          id: fullNext.id,
+          winnerId: fullNext.winnerId,
+          nextMatchId: fullNext.nextMatchId,
+          nextMatchSlot: fullNext.nextMatchSlot,
+          tournamentId: match.tournamentId,
+        });
+      }
+    }
   }
 }
 
@@ -522,22 +631,90 @@ export async function advanceLoser(match: {
   winnerId: number | null;
   loserNextMatchId?: number | null;
   loserNextMatchSlot?: number | null;
+  tournamentId?: number;
 }) {
-  if (!match.loserNextMatchId) return;
+  let loserNextMatchId = match.loserNextMatchId;
+  let loserNextMatchSlot = match.loserNextMatchSlot;
+  let loserNextGroupId: number | null = null;
+  let loserNextGroupSlot: number | null = null;
+  let gridMeta: any = null;
+
+  // Check if this is a CUSTOM tournament with conditional advancement
+  if (match.tournamentId) {
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: match.tournamentId },
+      select: { format: true, gridJson: true },
+    });
+
+    if (tournament?.gridJson) {
+      try {
+        gridMeta = JSON.parse(tournament.gridJson);
+        if (gridMeta?.conditionalAdvancement?.[match.id]) {
+          const advancement = gridMeta.conditionalAdvancement[match.id];
+          if (advancement.loserNextMatchId) {
+            loserNextMatchId = advancement.loserNextMatchId;
+            loserNextMatchSlot = advancement.loserNextMatchSlot;
+          }
+          if (advancement.loserNextGroupId) {
+            loserNextGroupId = advancement.loserNextGroupId;
+            loserNextGroupSlot = advancement.loserNextGroupSlot ?? null;
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing tournament gridJson (conditional advancement):', err);
+      }
+    }
+  }
+
+  if (!loserNextMatchId && loserNextGroupId && match.tournamentId) {
+    const loserId = match.winnerId === match.player1Id ? match.player2Id : match.player1Id;
+    if (loserId) {
+      await assignParticipantToGroup(match.tournamentId, loserNextGroupId, loserId, loserNextGroupSlot);
+    }
+    return;
+  }
+  if (!loserNextMatchId) return;
   const loserId = match.winnerId === match.player1Id ? match.player2Id : match.player1Id;
   if (!loserId) return;
 
-  const updateData: any = match.loserNextMatchSlot === 1
+  const slot = loserNextMatchSlot ?? 1;
+  const updateData: any = slot === 1
     ? { player1Id: loserId }
     : { player2Id: loserId };
 
   const lbMatch = await prisma.match.update({
-    where: { id: match.loserNextMatchId },
+    where: { id: loserNextMatchId },
     data: updateData,
   });
 
+  // Auto-advance if the other slot will never be filled (custom templates/byes)
+  if (match.tournamentId && gridMeta?.customMatchInputSlots?.[loserNextMatchId]) {
+    const inputMeta = gridMeta.customMatchInputSlots[loserNextMatchId];
+    const otherSlot = slot === 1 ? 2 : 1;
+    const otherHasInput = otherSlot === 1 ? !!inputMeta?.hasSlot1 : !!inputMeta?.hasSlot2;
+    const otherFilled = otherSlot === 1 ? !!lbMatch.player1Id : !!lbMatch.player2Id;
+    const winnerId = slot === 1 ? lbMatch.player1Id : lbMatch.player2Id;
+
+    if (!otherFilled && !otherHasInput && winnerId) {
+      await prisma.match.update({
+        where: { id: loserNextMatchId },
+        data: { isFinished: true, isBye: true, winnerId },
+      });
+      const fullNext = await prisma.match.findUnique({ where: { id: loserNextMatchId } });
+      if (fullNext?.winnerId) {
+        await advanceWinner({
+          id: fullNext.id,
+          winnerId: fullNext.winnerId,
+          nextMatchId: fullNext.nextMatchId,
+          nextMatchSlot: fullNext.nextMatchSlot,
+          tournamentId: match.tournamentId,
+        });
+      }
+    }
+  }
+
   // Check if the other slot will ever be filled; if not, auto-advance as BYE
-  const otherSlot = match.loserNextMatchSlot === 1 ? 2 : 1;
+  const otherSlot = slot === 1 ? 2 : 1;
   const otherFilled = otherSlot === 1 ? !!lbMatch.player1Id : !!lbMatch.player2Id;
 
   if (!otherFilled) {
@@ -562,20 +739,129 @@ export async function advanceLoser(match: {
     if (!willGetLoser && !willGetWinner) {
       // Permanently empty slot — auto-advance the lone player as BYE
       await prisma.match.update({
-        where: { id: match.loserNextMatchId },
+        where: { id: loserNextMatchId! },
         data: { isFinished: true, isBye: true, winnerId: loserId },
       });
-      const fullLbMatch = await prisma.match.findUnique({ where: { id: match.loserNextMatchId } });
+      const fullLbMatch = await prisma.match.findUnique({ where: { id: loserNextMatchId! } });
       if (fullLbMatch?.nextMatchId) {
         await advanceWinner({
           id: fullLbMatch.id,
           winnerId: loserId,
           nextMatchId: fullLbMatch.nextMatchId,
           nextMatchSlot: fullLbMatch.nextMatchSlot,
+          tournamentId: match.tournamentId,
         });
       }
     }
   }
+}
+
+async function assignParticipantToGroup(
+  tournamentId: number,
+  groupId: number,
+  participantId: number,
+  _slot?: number | null,
+) {
+  // Avoid duplicates
+  const exists = await prisma.groupParticipant.findFirst({
+    where: { groupId, participantId },
+  });
+  if (exists) return;
+
+  // Read group size from gridJson metadata (if available)
+  let groupSize: number | null = null;
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { gridJson: true },
+  });
+  if (tournament?.gridJson) {
+    try {
+      const meta = JSON.parse(tournament.gridJson);
+      if (meta?.customGroupSizes?.[groupId]) {
+        groupSize = Number(meta.customGroupSizes[groupId]);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const currentCount = await prisma.groupParticipant.count({ where: { groupId } });
+  if (groupSize && currentCount >= groupSize) return;
+
+  await prisma.groupParticipant.create({
+    data: { groupId, participantId },
+  });
+
+  // If the group is now full, generate round-robin matches (only once)
+  const newCount = currentCount + 1;
+  if (groupSize && newCount >= groupSize) {
+    const existingMatches = await prisma.match.count({ where: { groupId, tournamentId } });
+    if (existingMatches === 0) {
+      const participants = await prisma.groupParticipant.findMany({
+        where: { groupId },
+        select: { participantId: true },
+      });
+      const participantIds = participants.map((p) => p.participantId);
+      if (participantIds.length >= 2) {
+        const groupStage = await ensureStage('РљР°СЃС‚РѕРјРЅС‹Р№ РіСЂСѓРїРїРѕРІРѕР№ СЌС‚Р°Рї');
+        const schedule = buildRoundRobinSchedule(participantIds);
+        for (let roundIdx = 0; roundIdx < schedule.length; roundIdx++) {
+          for (const [p1, p2] of schedule[roundIdx]) {
+            await prisma.match.create({
+              data: {
+                tournamentId,
+                stageId: groupStage.id,
+                groupId,
+                roundNumber: roundIdx + 1,
+                player1Id: p1,
+                player2Id: p2,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+}
+
+export async function autoAdvanceCustomBye(tournamentId: number, matchId: number) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { gridJson: true },
+  });
+  if (!tournament?.gridJson) return;
+
+  let gridMeta: any;
+  try { gridMeta = JSON.parse(tournament.gridJson); } catch { return; }
+  const inputMeta = gridMeta?.customMatchInputSlots?.[matchId];
+  if (!inputMeta) return;
+
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match || match.isFinished) return;
+
+  const hasP1 = !!match.player1Id;
+  const hasP2 = !!match.player2Id;
+  if ((hasP1 && hasP2) || (!hasP1 && !hasP2)) return;
+
+  const emptySlot = hasP1 ? 2 : 1;
+  const emptyHasInput = emptySlot === 1 ? !!inputMeta.hasSlot1 : !!inputMeta.hasSlot2;
+  if (emptyHasInput) return;
+
+  const winnerId = hasP1 ? match.player1Id : match.player2Id;
+  if (!winnerId) return;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { isFinished: true, isBye: true, winnerId },
+  });
+
+  await advanceWinner({
+    id: matchId,
+    winnerId,
+    nextMatchId: match.nextMatchId,
+    nextMatchSlot: match.nextMatchSlot,
+    tournamentId,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

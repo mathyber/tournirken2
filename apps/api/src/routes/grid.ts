@@ -2,13 +2,7 @@ import { FastifyInstance } from 'fastify';
 import prisma from '../lib/prisma';
 import { badRequest, forbidden, notFound, parseId } from '../lib/errors';
 import { SaveDraftGridSchema, FinalizeGridSchema } from '@tournirken/shared';
-import {
-  generateSingleElimination,
-  generateDoubleElimination,
-  generateRoundRobin,
-  generateSwissRound,
-  generateMixedGroupStage,
-} from '../services/brackets';
+import { getTemplateForFormat } from '../services/templates';
 
 export default async function gridRoutes(fastify: FastifyInstance) {
   // POST /api/tournaments/:id/grid/draft
@@ -88,104 +82,41 @@ if (!id) return badRequest(reply, 'Неверный ID');
       }
 
       try {
-        switch (tournament.format) {
-          case 'SINGLE_ELIMINATION':
-            await generateSingleElimination(id, orderedParticipants);
-            break;
-
-          case 'DOUBLE_ELIMINATION':
-            await generateDoubleElimination(id, orderedParticipants);
-            break;
-
-          case 'ROUND_ROBIN': {
-            // Create one group for all participants
-            const group = await prisma.tournamentGroup.create({
-              data: {
-                tournamentId: id,
-                name: groupConfigs?.[0]?.name ?? 'Основная группа',
-                pointsForWin: groupConfigs?.[0]?.pointsForWin ?? 3,
-                pointsForDraw: groupConfigs?.[0]?.pointsForDraw ?? 1,
-              },
-            });
-            await prisma.groupParticipant.createMany({
-              data: orderedParticipants.map((pid) => ({ groupId: group.id, participantId: pid })),
-            });
-            await generateRoundRobin(id, group.id, orderedParticipants);
-            break;
-          }
-
-          case 'SWISS': {
-            const swissRounds = tournament.swissRounds ?? Math.ceil(Math.log2(participantIds.length));
-            await generateSwissRound(id, 1, orderedParticipants);
-            // Store total rounds in gridJson for tracking
-            const swissMeta = { totalRounds: swissRounds, currentRound: 1 };
-            await prisma.tournament.update({
-              where: { id },
-              data: { gridJson: JSON.stringify(swissMeta) },
-            });
-            break;
-          }
-
-          case 'MIXED': {
-            if (!mixedConfig) return badRequest(reply, 'Нужна конфигурация Mixed турнира');
-            const { numberOfGroups, advancePerGroup } = mixedConfig;
-
-            // Create groups
-            const createdGroups: Array<{ groupId: number; participantIds: number[] }> = [];
-            for (let i = 0; i < numberOfGroups; i++) {
-              const gConfig = groupConfigs?.[i];
-              const group = await prisma.tournamentGroup.create({
-                data: {
-                  tournamentId: id,
-                  name: gConfig?.name ?? `Группа ${String.fromCharCode(65 + i)}`,
-                  pointsForWin: gConfig?.pointsForWin ?? 3,
-                  pointsForDraw: gConfig?.pointsForDraw ?? 1,
-                },
-              });
-
-              // Distribute participants round-robin style among groups
-              const groupParticipants = participantAssignments
-                ?.filter((a) => a.groupId === gConfig?.id || a.groupId === group.id.toString())
-                .map((a) => a.participantId) ?? [];
-
-              // Fallback: distribute evenly
-              if (groupParticipants.length === 0) {
-                for (let j = i; j < orderedParticipants.length; j += numberOfGroups) {
-                  groupParticipants.push(orderedParticipants[j]);
-                }
-              }
-
-              await prisma.groupParticipant.createMany({
-                data: groupParticipants.map((pid) => ({ groupId: group.id, participantId: pid })),
-              });
-              createdGroups.push({ groupId: group.id, participantIds: groupParticipants });
-            }
-
-            await generateMixedGroupStage(id, createdGroups);
-
-            // Playoff bracket will be generated after groups finish
-            const mixedMeta = { advancePerGroup, playoffStarted: false };
-            await prisma.tournament.update({
-              where: { id },
-              data: { gridJson: JSON.stringify({ ...JSON.parse(gridJson || '{}'), ...mixedMeta }) },
-            });
-            break;
-          }
-
-          default:
-            return badRequest(reply, 'Неподдерживаемый формат турнира');
+        // Generate CUSTOM schema from template
+        const template = getTemplateForFormat(tournament.format as any);
+        if (!template) {
+          return badRequest(reply, `Шаблон для формата ${tournament.format} не найден`);
         }
 
+        const schema = template.generateSchema(participantIds.length);
+        const schemaJson = JSON.stringify(schema);
+
+        // Save the generated schema
         await prisma.tournament.update({
           where: { id },
           data: {
-            status: 'ACTIVE',
-            tournamentStart: new Date(),
-            gridJson: tournament.format !== 'SWISS' && tournament.format !== 'MIXED' ? gridJson : undefined,
+            customSchema: schemaJson,
           },
         });
 
-        return reply.send({ message: 'Турнир запущен' });
+        // Now call the custom-finalize logic by simulating the request
+        // We'll reuse the custom-finalize endpoint logic
+        const customFinalizeUrl = `/api/tournaments/${id}/custom-finalize`;
+        const customResponse = await fastify.inject({
+          method: 'POST',
+          url: customFinalizeUrl,
+          headers: {
+            'authorization': request.headers.authorization,
+            'user-agent': request.headers['user-agent'] || '',
+          },
+        });
+
+        if (customResponse.statusCode !== 200) {
+          const errorBody = JSON.parse(customResponse.body);
+          return reply.status(customResponse.statusCode).send(errorBody);
+        }
+
+        return reply.send({ message: 'Турнир запущен с использованием шаблона' });
       } catch (err: any) {
         console.error('Grid generation error:', err);
         return reply.status(500).send({ error: 'Ошибка генерации турнирной сетки', details: err.message });

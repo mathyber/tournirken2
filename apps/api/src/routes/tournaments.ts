@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify';
+﻿import { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
@@ -8,7 +8,7 @@ import {
   UpdateTournamentSchema,
   TournamentFiltersSchema,
 } from '@tournirken/shared';
-import { buildRoundRobinSchedule } from '../services/brackets';
+import { autoAdvanceCustomBye, buildRoundRobinSchedule } from '../services/brackets';
 
 const CopyTournamentSchema = z.object({
   newName: z.string().min(1),
@@ -628,9 +628,6 @@ if (!id) return badRequest(reply, 'Неверный ID');
       const isAdmin = request.userRoles?.includes('ADMIN') || request.userRoles?.includes('MODERATOR');
       if (!isOrganizer && !isAdmin) return forbidden(reply);
 
-      if (tournament.format !== 'CUSTOM') {
-        return badRequest(reply, 'Эта операция доступна только для турниров формата CUSTOM');
-      }
       if (!tournament.customSchema) {
         return badRequest(reply, 'Сначала сохраните схему турнира');
       }
@@ -643,7 +640,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
       const matchNodes = nodes.filter((n: any) => n.type === 'match');
       const groupNodes = nodes.filter((n: any) => n.type === 'group');
       const finalNodes = nodes.filter((n: any) => n.type === 'final');
-      if (matchNodes.length === 0) {
+      if (matchNodes.length === 0 && groupNodes.length === 0) {
         return reply.status(400).send({ error: 'Схема должна содержать хотя бы один матч' });
       }
       if (finalNodes.length === 0) {
@@ -675,6 +672,8 @@ if (!id) return badRequest(reply, 'Неверный ID');
       const nodeIdToMatchId = new Map<string, number>();
       // Map nodeId -> DB groupId for GroupNodes
       const nodeIdToGroupId = new Map<string, number>();
+      // Map groupId -> size (from schema)
+      const customGroupSizes: Record<number, number> = {};
 
       // ── Step 1: Create MatchNode records (without links yet) ───────────────
       for (const mn of matchNodes as any[]) {
@@ -725,6 +724,7 @@ if (!id) return badRequest(reply, 'Неверный ID');
           },
         });
         nodeIdToGroupId.set(gn.id, group.id);
+        customGroupSizes[group.id] = groupSize;
 
         // Assign participants to the group
         for (const participantId of groupParticipantIds) {
@@ -733,8 +733,8 @@ if (!id) return badRequest(reply, 'Неверный ID');
           });
         }
 
-        // Generate round-robin matches between all participants in this group
-        if (groupParticipantIds.length >= 2) {
+        // Generate round-robin matches only when the group is fully populated
+        if (groupParticipantIds.length >= 2 && groupParticipantIds.length >= groupSize) {
           const schedule = buildRoundRobinSchedule(groupParticipantIds);
           for (let roundIdx = 0; roundIdx < schedule.length; roundIdx++) {
             for (const [p1, p2] of schedule[roundIdx]) {
@@ -756,28 +756,110 @@ if (!id) return badRequest(reply, 'Неверный ID');
       // ── Step 3: Wire match-to-match edges (winner/loser advancement) ────────
       // React Flow stores render type (e.g. 'smoothstep') in edge.type;
       // the actual winner/loser type is stored in edge.data.edgeType.
-      const winnerLoserEdges = edges.filter(
-        (e: any) => e.data?.edgeType === 'winner' || e.type === 'winner' || e.data?.edgeType === 'loser' || e.type === 'loser'
+      const advancementEdges = edges.filter(
+        (e: any) => ['winner', 'winner-1', 'winner-2', 'loser'].includes(e.data?.edgeType) ||
+                   ['winner', 'winner-1', 'winner-2', 'loser'].includes(e.type)
       );
-      for (const edge of winnerLoserEdges) {
+
+      // Store conditional advancement rules for matches
+      const conditionalAdvancement: Record<number, {
+        winner1NextMatchId?: number;
+        winner1NextMatchSlot?: number;
+        winner2NextMatchId?: number;
+        winner2NextMatchSlot?: number;
+        loserNextMatchId?: number;
+        loserNextMatchSlot?: number;
+        winner1NextGroupId?: number;
+        winner1NextGroupSlot?: number;
+        winner2NextGroupId?: number;
+        winner2NextGroupSlot?: number;
+        loserNextGroupId?: number;
+        loserNextGroupSlot?: number;
+      }> = {};
+
+      for (const edge of advancementEdges) {
         const sourceMatchDbId = nodeIdToMatchId.get(edge.source);
         const targetMatchDbId = nodeIdToMatchId.get(edge.target);
-        if (!sourceMatchDbId || !targetMatchDbId) continue;
+        const targetGroupDbId = nodeIdToGroupId.get(edge.target);
+        if (!sourceMatchDbId || (!targetMatchDbId && !targetGroupDbId)) continue;
 
         const slot = parseInputSlot(edge.targetHandle);
         const resolvedEdgeType = edge.data?.edgeType ?? edge.type;
-        if (resolvedEdgeType === 'winner') {
-          await prisma.match.update({
-            where: { id: sourceMatchDbId },
-            data: { nextMatchId: targetMatchDbId, nextMatchSlot: slot },
-          });
+
+        if (!conditionalAdvancement[sourceMatchDbId]) {
+          conditionalAdvancement[sourceMatchDbId] = {};
+        }
+
+        if (resolvedEdgeType === 'winner-1') {
+          if (targetMatchDbId) {
+            conditionalAdvancement[sourceMatchDbId].winner1NextMatchId = targetMatchDbId;
+            conditionalAdvancement[sourceMatchDbId].winner1NextMatchSlot = slot;
+          } else if (targetGroupDbId) {
+            conditionalAdvancement[sourceMatchDbId].winner1NextGroupId = targetGroupDbId;
+            conditionalAdvancement[sourceMatchDbId].winner1NextGroupSlot = slot;
+          }
+        } else if (resolvedEdgeType === 'winner-2') {
+          if (targetMatchDbId) {
+            conditionalAdvancement[sourceMatchDbId].winner2NextMatchId = targetMatchDbId;
+            conditionalAdvancement[sourceMatchDbId].winner2NextMatchSlot = slot;
+          } else if (targetGroupDbId) {
+            conditionalAdvancement[sourceMatchDbId].winner2NextGroupId = targetGroupDbId;
+            conditionalAdvancement[sourceMatchDbId].winner2NextGroupSlot = slot;
+          }
         } else if (resolvedEdgeType === 'loser') {
-          await prisma.match.update({
-            where: { id: sourceMatchDbId },
-            data: { loserNextMatchId: targetMatchDbId, loserNextMatchSlot: slot },
-          });
+          if (targetMatchDbId) {
+            conditionalAdvancement[sourceMatchDbId].loserNextMatchId = targetMatchDbId;
+            conditionalAdvancement[sourceMatchDbId].loserNextMatchSlot = slot;
+          } else if (targetGroupDbId) {
+            conditionalAdvancement[sourceMatchDbId].loserNextGroupId = targetGroupDbId;
+            conditionalAdvancement[sourceMatchDbId].loserNextGroupSlot = slot;
+          }
+        } else if (resolvedEdgeType === 'winner') {
+          // Legacy support: old 'winner' edges apply to both winner-1 and winner-2
+          if (targetMatchDbId) {
+            conditionalAdvancement[sourceMatchDbId].winner1NextMatchId = targetMatchDbId;
+            conditionalAdvancement[sourceMatchDbId].winner1NextMatchSlot = slot;
+            conditionalAdvancement[sourceMatchDbId].winner2NextMatchId = targetMatchDbId;
+            conditionalAdvancement[sourceMatchDbId].winner2NextMatchSlot = slot;
+          } else if (targetGroupDbId) {
+            conditionalAdvancement[sourceMatchDbId].winner1NextGroupId = targetGroupDbId;
+            conditionalAdvancement[sourceMatchDbId].winner1NextGroupSlot = slot;
+            conditionalAdvancement[sourceMatchDbId].winner2NextGroupId = targetGroupDbId;
+            conditionalAdvancement[sourceMatchDbId].winner2NextGroupSlot = slot;
+          }
         }
       }
+
+      // Store conditional advancement in gridJson for runtime use
+      const gridMeta: any = {
+        conditionalAdvancement,
+        customNodeMap: {},
+        customGroupMap: {},
+        customGroupSizes: {},
+        customMatchInputSlots: {},
+        customGroupOutputs: {},
+        hasCustomGroups: false,
+      };
+
+      // Track which match input slots have any incoming edges
+      const customMatchInputSlots: Record<number, { hasSlot1: boolean; hasSlot2: boolean }> = {};
+      for (const matchId of nodeIdToMatchId.values()) {
+        customMatchInputSlots[matchId] = { hasSlot1: false, hasSlot2: false };
+      }
+      for (const edge of edges) {
+        const targetMatchDbId = nodeIdToMatchId.get(edge.target);
+        if (!targetMatchDbId) continue;
+        const slot = parseInputSlot(edge.targetHandle);
+        if (!customMatchInputSlots[targetMatchDbId]) {
+          customMatchInputSlots[targetMatchDbId] = { hasSlot1: false, hasSlot2: false };
+        }
+        if (slot === 1) customMatchInputSlots[targetMatchDbId].hasSlot1 = true;
+        else customMatchInputSlots[targetMatchDbId].hasSlot2 = true;
+      }
+
+      // Persist group sizes and match input map
+      gridMeta.customGroupSizes = customGroupSizes;
+      gridMeta.customMatchInputSlots = customMatchInputSlots;
 
       // ── Step 4: Assign StartNode participants to direct-match inputs ────────
       // (Only applies for StartNodes that connect directly to a MatchNode, not a GroupNode)
@@ -829,21 +911,27 @@ if (!id) return badRequest(reply, 'Неверный ID');
       for (const [nodeId, matchId] of nodeIdToMatchId.entries()) {
         customNodeMap[nodeId] = matchId;
       }
-
-      // Persist metadata in gridJson
-      const gridMeta: any = {
-        customGroupOutputs,
-        customNodeMap,
-      };
-      if (Object.keys(customGroupOutputs).length > 0) {
-        gridMeta.hasCustomGroups = true;
+      const customGroupMap: Record<string, number> = {};
+      for (const [nodeId, groupId] of nodeIdToGroupId.entries()) {
+        customGroupMap[nodeId] = groupId;
       }
+
+      // Update gridMeta with group outputs
+      gridMeta.customGroupOutputs = customGroupOutputs;
+      gridMeta.customNodeMap = customNodeMap;
+      gridMeta.customGroupMap = customGroupMap;
+      gridMeta.hasCustomGroups = Object.keys(customGroupOutputs).length > 0;
 
       // Update tournament status to ACTIVE
       await prisma.tournament.update({
         where: { id },
         data: { status: 'ACTIVE', gridJson: JSON.stringify(gridMeta) },
       });
+
+      // Auto-advance BYE matches (slots with no incoming edges) after gridJson is stored
+      for (const matchId of nodeIdToMatchId.values()) {
+        await autoAdvanceCustomBye(id, matchId);
+      }
 
       return reply.send({ success: true, matchCount: matchNodes.length, groupCount: groupNodes.length });
     }
@@ -961,3 +1049,4 @@ function calculateGroupStandings(group: any) {
 
   return sorted.map((s, i) => ({ rank: i + 1, ...s }));
 }
+

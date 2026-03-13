@@ -52,8 +52,12 @@ function BuilderMatchNode({ data, selected }: NodeProps) {
       <div style={{ display: 'flex', alignItems: 'center', padding: '5px 10px', minHeight: 28 }}>
         <span style={{ color: '#64748b' }}>Игрок 2</span>
       </div>
-      <Handle type="source" id="winner" position={Position.Right} style={{ top: '33%', background: '#22c55e', width: 10, height: 10 }} />
-      <Handle type="source" id="loser" position={Position.Right} style={{ top: '67%', background: '#ef4444', width: 10, height: 10 }} />
+      <Handle type="source" id="winner-1" position={Position.Right} style={{ top: '25%', background: '#22c55e', width: 8, height: 8 }} />
+      <Handle type="source" id="winner-2" position={Position.Right} style={{ top: '50%', background: '#16a34a', width: 8, height: 8 }} />
+      <Handle type="source" id="loser" position={Position.Right} style={{ top: '75%', background: '#ef4444', width: 8, height: 8 }} />
+      <div style={{ position: 'absolute', right: -25, top: '20%', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>1W</div>
+      <div style={{ position: 'absolute', right: -25, top: '45%', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>2W</div>
+      <div style={{ position: 'absolute', right: -25, top: '70%', fontSize: 9, color: '#dc2626', fontWeight: 600 }}>L</div>
     </div>
   );
 }
@@ -177,8 +181,12 @@ function ViewMatchNode({ data, selected }: NodeProps) {
           {result ? result.player2Score : '?'}
         </span>
       </div>
-      <Handle type="source" id="winner" position={Position.Right} style={{ top: '33%', background: '#22c55e', width: 10, height: 10 }} />
-      <Handle type="source" id="loser" position={Position.Right} style={{ top: '67%', background: '#ef4444', width: 10, height: 10 }} />
+      <Handle type="source" id="winner-1" position={Position.Right} style={{ top: '25%', background: '#22c55e', width: 8, height: 8 }} />
+      <Handle type="source" id="winner-2" position={Position.Right} style={{ top: '50%', background: '#16a34a', width: 8, height: 8 }} />
+      <Handle type="source" id="loser" position={Position.Right} style={{ top: '75%', background: '#ef4444', width: 8, height: 8 }} />
+      <div style={{ position: 'absolute', right: -25, top: '20%', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>1W</div>
+      <div style={{ position: 'absolute', right: -25, top: '45%', fontSize: 9, color: '#16a34a', fontWeight: 600 }}>2W</div>
+      <div style={{ position: 'absolute', right: -25, top: '70%', fontSize: 9, color: '#dc2626', fontWeight: 600 }}>L</div>
     </div>
   );
 }
@@ -367,14 +375,23 @@ function CustomBuilderPage() {
     let edgeType = 'participant';
     let edgeStyle: any = { stroke: '#3b82f6', strokeWidth: 2 };
     let animated = false;
+    let label = '';
 
-    if (connection.sourceHandle === 'winner') {
-      edgeType = 'winner';
+    if (connection.sourceHandle === 'winner-1') {
+      edgeType = 'winner-1';
       edgeStyle = { stroke: '#22c55e', strokeWidth: 2, strokeDasharray: '6 3' };
       animated = true;
+      label = '1W';
+    } else if (connection.sourceHandle === 'winner-2') {
+      edgeType = 'winner-2';
+      edgeStyle = { stroke: '#16a34a', strokeWidth: 2, strokeDasharray: '6 3' };
+      animated = true;
+      label = '2W';
     } else if (connection.sourceHandle === 'loser') {
       edgeType = 'loser';
       edgeStyle = { stroke: '#ef4444', strokeWidth: 2, strokeDasharray: '6 3' };
+      animated = true;
+      label = 'L';
     }
 
     setEdges((eds) => addEdge({
@@ -384,7 +401,7 @@ function CustomBuilderPage() {
       style: edgeStyle,
       markerEnd: { type: MarkerType.ArrowClosed },
       data: { edgeType },
-      ...(edgeType !== 'participant' ? { label: edgeType === 'winner' ? 'W' : 'L' } : {}),
+      label,
     } as Edge, eds));
   }, [setEdges]);
 
