@@ -102,6 +102,7 @@
   "create.tournamentName": "Назва турніру *",
   "create.tournamentNamePlaceholder": "Весняний чемпіонат",
   "create.season": "Сезон",
+  "create.seasonPlaceholder": "Весна 2028",
   "create.game": "Гра *",
   "create.gamePlaceholder": "CS2, Dota 2, ...",
   "create.format": "Формат *",

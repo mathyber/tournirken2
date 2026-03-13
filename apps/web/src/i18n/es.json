@@ -102,6 +102,7 @@
   "create.tournamentName": "Nombre del torneo *",
   "create.tournamentNamePlaceholder": "Campeonato de Primavera",
   "create.season": "Temporada",
+  "create.seasonPlaceholder": "Primavera 2028",
   "create.game": "Juego *",
   "create.gamePlaceholder": "CS2, Dota 2, ...",
   "create.format": "Formato *",

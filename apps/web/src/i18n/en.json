@@ -102,6 +102,7 @@
   "create.tournamentName": "Tournament name *",
   "create.tournamentNamePlaceholder": "Spring Championship",
   "create.season": "Season",
+  "create.seasonPlaceholder": "Spring 2028",
   "create.game": "Game *",
   "create.gamePlaceholder": "CS2, Dota 2, ...",
   "create.format": "Format *",

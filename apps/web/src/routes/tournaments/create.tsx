@@ -92,8 +92,8 @@ function CreateTournamentPage() {
         <Card className="space-y-0">
           <CardHeader><CardTitle className="text-lg">{t('create.basicInfo')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 md:col-span-1">
+            <div className="grid grid-cols-7 gap-4">
+              <div className="col-span-7 md:col-span-5">
                 <Label htmlFor="name">{t('create.tournamentName')}</Label>
                 <Input
                   id="name"
@@ -103,32 +103,16 @@ function CreateTournamentPage() {
                   required
                 />
               </div>
-              <div className="col-span-2 md:col-span-1">
+              <div className="col-span-7 md:col-span-2">
                 <Label htmlFor="season">{t('create.season')}</Label>
                 <Input
                   id="season"
-                  type="number"
+                  type="string"
                   value={form.season}
                   onChange={(e) => setForm((f) => ({ ...f, season: e.target.value }))}
-                  placeholder="1"
-                  min="1"
+                  placeholder={t('create.seasonPlaceholder')}
                 />
               </div>
-            </div>
-
-            <div>
-              <Label htmlFor="game">{t('create.game')}</Label>
-              <Input
-                id="game"
-                value={form.gameName}
-                onChange={(e) => setForm((f) => ({ ...f, gameName: e.target.value }))}
-                placeholder={t('create.gamePlaceholder')}
-                list="games-list"
-                required
-              />
-              <datalist id="games-list">
-                {games.map((g: any) => <option key={g.id} value={g.name} />)}
-              </datalist>
             </div>
 
             <div>
@@ -163,17 +147,33 @@ function CreateTournamentPage() {
               </div>
             )}
 
-            <div>
-              <Label htmlFor="max">{t('create.maxParticipants')}</Label>
-              <Input
-                id="max"
-                type="number"
-                value={form.maxParticipants}
-                onChange={(e) => setForm((f) => ({ ...f, maxParticipants: e.target.value }))}
-                min="2"
-                max="512"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 md:col-span-1">
+                <Label htmlFor="game">{t('create.game')}</Label>
+                <Input
+                  id="game"
+                  value={form.gameName}
+                  onChange={(e) => setForm((f) => ({ ...f, gameName: e.target.value }))}
+                  placeholder={t('create.gamePlaceholder')}
+                  list="games-list"
+                  required
+                />
+                {!!form.gameName?.length && <datalist id="games-list">
+                  {games.map((g: any) => <option key={g.id} value={g.name} />)}
+                </datalist>}
+              </div>
+              <div className="col-span-2 md:col-span-1">
+                <Label htmlFor="max">{t('create.maxParticipants')}</Label>
+                <Input
+                  id="max"
+                  type="number"
+                  value={form.maxParticipants}
+                  onChange={(e) => setForm((f) => ({ ...f, maxParticipants: e.target.value }))}
+                  min="2"
+                  max="512"
+                  required
+                />
+              </div>
             </div>
 
             <div>
