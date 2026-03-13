@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { badRequest, forbidden, notFound, parseId } from '../lib/errors';
 import {
@@ -8,6 +9,10 @@ import {
   TournamentFiltersSchema,
 } from '@tournirken/shared';
 import { buildRoundRobinSchedule } from '../services/brackets';
+
+const CopyTournamentSchema = z.object({
+  newName: z.string().min(1),
+});
 
 /**
  * Parse a ReactFlow handle id like "input-1" or "input-2" into a 1-indexed slot number.
@@ -193,6 +198,74 @@ if (!id) return badRequest(reply, 'Неверный ID');
 
     return reply.status(201).send(formatTournament(tournament));
   });
+
+  // POST /api/tournaments/:id/copy
+  fastify.post<{ Params: { id: string } }>(
+    '/:id/copy',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      const id = parseId(request.params.id);
+      if (!id) return badRequest(reply, 'Неверный ID');
+
+      const result = CopyTournamentSchema.safeParse(request.body);
+      if (!result.success) return badRequest(reply, result.error.issues[0]?.message ?? 'Неверные данные');
+      const { newName } = result.data;
+
+      const tournament = await prisma.tournament.findUnique({
+        where: { id },
+        include: { tournamentName: true },
+      });
+      if (!tournament) return notFound(reply, 'Турнир не найден');
+
+      const isOrganizer = tournament.organizerId === request.userId;
+      if (!isOrganizer) return forbidden(reply);
+
+      // Copy tournament, but strip participants, results and all date fields.
+      // Keep basic settings + schema/grid if present.
+
+      const game = await prisma.game.findUnique({ where: { id: tournament.tournamentName.gameId } });
+      if (!game) return badRequest(reply, 'Игра не найдена');
+
+      let copiedNameRecord = await prisma.tournamentName.findUnique({
+        where: { name_gameId_creatorId: { name: newName, gameId: game.id, creatorId: request.userId! } },
+      });
+      if (!copiedNameRecord) {
+        copiedNameRecord = await prisma.tournamentName.create({
+          data: {
+            name: newName,
+            nameLower: newName.toLowerCase(),
+            gameId: game.id,
+            creatorId: request.userId!,
+          },
+        });
+      }
+
+      const copied = await prisma.tournament.create({
+        data: {
+          nameId: copiedNameRecord.id,
+          organizerId: request.userId!,
+          season: tournament.season,
+          format: tournament.format,
+          maxParticipants: tournament.maxParticipants,
+          onlyOrganizerSetsResults: tournament.onlyOrganizerSetsResults,
+          info: tournament.info,
+          logo: tournament.logo,
+          swissRounds: tournament.swissRounds,
+          customSchema: tournament.customSchema,
+          gridJson: tournament.gridJson,
+          // Dates cleared so the new tournament is fresh
+          registrationStart: null,
+          registrationEnd: null,
+          tournamentStart: null,
+          tournamentEnd: null,
+          status: 'DRAFT',
+        },
+        include: TOURNAMENT_INCLUDE,
+      });
+
+      return reply.status(201).send(formatTournament(copied));
+    }
+  );
 
   // PATCH /api/tournaments/:id
   fastify.patch<{ Params: { id: string } }>(

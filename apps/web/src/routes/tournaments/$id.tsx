@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from '@tanstack/react-r
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ru, enUS } from 'date-fns/locale';
-import { Users, Calendar, Trophy, GitBranch, Settings } from 'lucide-react';
+import { Users, Calendar, Trophy, GitBranch, Settings, Copy } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments';
 import { useAuthStore } from '../../stores/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
@@ -59,6 +59,18 @@ function TournamentPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tournament', tournamentId] });
       queryClient.invalidateQueries({ queryKey: ['tournament-participants', tournamentId] });
+    },
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: () => {
+      const newName = `${t('tournament.copyPrefix')} ${tournament.name}`;
+      return tournamentsApi.copy(tournamentId, newName);
+    },
+    onSuccess: (copiedTournament) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments'] });
+      // Optionally navigate to the new tournament
+      // router.navigate({ to: `/tournaments/${copiedTournament.id}` });
     },
   });
 
@@ -156,6 +168,22 @@ function TournamentPage() {
               <Link to="/tournaments/$id/organizer" params={{ id }}>
                 <Button className="gap-2"><Settings className="h-4 w-4" />{t('btn.organizerPanel')}</Button>
               </Link>
+            )}
+            {isOrganizer && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={async () => {
+                  const res = await cloneMutation.mutateAsync();
+                  if (res?.id) {
+                    window.location.href = `/tournaments/${res.id}`;
+                  }
+                }}
+                disabled={cloneMutation.isPending}
+                title={t('tournament.copyTooltip')}
+              >
+                <Copy className="h-4 w-4" />{t('tournament.copy')}
+              </Button>
             )}
             {user && (
               myParticipation ? (
