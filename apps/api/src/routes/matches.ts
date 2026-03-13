@@ -280,7 +280,17 @@ if (!id) return badRequest(reply, 'Неверный ID');
                 if (finalNode) {
                   const incomingEdges = edges.filter((e: any) => e.target === finalNode.id);
                   if (incomingEdges.length > 0) {
-                    const finalMatchNodeId = incomingEdges[0].source;
+                    // Prefer explicit loser connection (e.g. when final node expects loser of a match)
+                    const finalEdge = incomingEdges.find((e: any) => {
+                      const t = e.data?.edgeType ?? e.type;
+                      return t === 'loser';
+                    }) ?? incomingEdges.find((e: any) => {
+                      const t = e.data?.edgeType ?? e.type;
+                      return t === 'winner';
+                    }) ?? incomingEdges[0];
+
+                    const edgeType = (finalEdge.data?.edgeType ?? finalEdge.type) as string;
+                    const finalMatchNodeId = finalEdge.source;
                     const finalMatchId = customNodeMap[finalMatchNodeId];
                     if (finalMatchId) {
                       const finalMatch = await prisma.match.findUnique({
@@ -288,10 +298,16 @@ if (!id) return badRequest(reply, 'Неверный ID');
                         select: { winnerId: true, player1Id: true, player2Id: true },
                       });
                       if (finalMatch?.winnerId) {
-                        await prisma.tournamentParticipant.update({ where: { id: finalMatch.winnerId }, data: { finalResult: '1' } });
-                        const loserId = finalMatch.winnerId === finalMatch.player1Id ? finalMatch.player2Id : finalMatch.player1Id;
-                        if (loserId) {
-                          await prisma.tournamentParticipant.update({ where: { id: loserId }, data: { finalResult: '2' } });
+                        const finalWinnerId = edgeType === 'loser'
+                          ? (finalMatch.winnerId === finalMatch.player1Id ? finalMatch.player2Id : finalMatch.player1Id)
+                          : finalMatch.winnerId;
+
+                        if (finalWinnerId) {
+                          await prisma.tournamentParticipant.update({ where: { id: finalWinnerId }, data: { finalResult: '1' } });
+                          const finalLoserId = finalWinnerId === finalMatch.player1Id ? finalMatch.player2Id : finalMatch.player1Id;
+                          if (finalLoserId) {
+                            await prisma.tournamentParticipant.update({ where: { id: finalLoserId }, data: { finalResult: '2' } });
+                          }
                         }
                       }
                     }
