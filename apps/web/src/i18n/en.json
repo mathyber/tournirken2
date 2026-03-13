@@ -75,6 +75,8 @@
   "tournament.tabGroups": "Groups",
   "tournament.notFoundPage": "Tournament not found",
   "tournament.bracketBtn": "Bracket",
+  "tournament.copy": "Copy tournament",
+  "tournament.copyTooltip": "Create a copy of this tournament (no participants, results, or dates)",
 
   "btn.join": "Join",
   "btn.joining": "Joining...",

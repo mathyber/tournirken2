@@ -48,6 +48,9 @@ export const tournamentsApi = {
 
   finalizeCustom: (id: number) =>
     api.post(`/tournaments/${id}/custom-finalize`).then((r) => r.data),
+
+  copy: (id: number) =>
+    api.post(`/tournaments/${id}/copy`).then((r) => r.data),
 };
 
 export const gamesApi = {

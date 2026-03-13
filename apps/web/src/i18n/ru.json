@@ -75,6 +75,9 @@
   "tournament.tabGroups": "Группы",
   "tournament.notFoundPage": "Турнир не найден",
   "tournament.bracketBtn": "Турнирная сетка",
+  "tournament.copy": "Копия турнира",
+  "tournament.copyTooltip": "Создать копию турнира (без участников, результатов и дат)",
+  "tournament.copyPrefix": "Копия",
 
   "btn.join": "Участвовать",
   "btn.joining": "Регистрация...",

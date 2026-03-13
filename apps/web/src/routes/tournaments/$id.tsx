@@ -62,6 +62,10 @@ function TournamentPage() {
     },
   });
 
+  const cloneMutation = useMutation({
+    mutationFn: () => tournamentsApi.copy(tournamentId),
+  });
+
   const joinMutation = useMutation({
     mutationFn: () => tournamentsApi.join(tournamentId),
     onSuccess: () => {
@@ -156,6 +160,22 @@ function TournamentPage() {
               <Link to="/tournaments/$id/organizer" params={{ id }}>
                 <Button className="gap-2"><Settings className="h-4 w-4" />{t('btn.organizerPanel')}</Button>
               </Link>
+            )}
+            {isOrganizer && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={async () => {
+                  const res = await cloneMutation.mutateAsync();
+                  if (res?.id) {
+                    window.location.href = `/tournaments/${res.id}`;
+                  }
+                }}
+                disabled={cloneMutation.isPending}
+                title={t('tournament.copyTooltip')}
+              >
+                <GitBranch className="h-4 w-4" />{t('tournament.copy')}
+              </Button>
             )}
             {user && (
               myParticipation ? (
